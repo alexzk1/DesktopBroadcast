@@ -6,23 +6,25 @@
 #include <iostream>
 #include <cstring>
 
-namespace SL {
-    namespace Screen_Capture {
+namespace SL
+{
+    namespace Screen_Capture
+    {
 
         void SanitizeRects(std::vector<ImageRect> &rects, const Image &img)
         {
-            for (auto &r : rects) {
-                if (r.right > Width(img)) {
+            for (auto &r : rects)
+            {
+                if (r.right > Width(img))
                     r.right = Width(img);
-                }
-                if (r.bottom > Height(img)) {
+                if (r.bottom > Height(img))
                     r.bottom = Height(img);
-                }
             }
         }
 
         template <typename Block>
-        class BitMap {
+        class BitMap
+        {
             static_assert(std::is_unsigned<Block>::value);
             static const size_t BitsPerBlock = sizeof(Block) * 8;
 
@@ -33,7 +35,8 @@ namespace SL {
                 , Blocks((width * height) / BitsPerBlock + 1, 0)
             {}
 
-            bool get(size_t x, size_t y) const { 
+            bool get(size_t x, size_t y) const
+            {
                 const size_t index = x * Width + y;
                 const size_t nblock = index / BitsPerBlock;
                 const size_t nbit = index % BitsPerBlock;
@@ -41,7 +44,8 @@ namespace SL {
                 return Blocks[nblock] & (Block(1) << nbit);
             }
 
-            void set(size_t x, size_t y) {
+            void set(size_t x, size_t y)
+            {
                 const size_t index = x * Width + y;
                 const size_t nblock = index / BitsPerBlock;
                 const size_t nbit = index % BitsPerBlock;
@@ -49,11 +53,13 @@ namespace SL {
                 Blocks[nblock] |= (Block(1) << nbit);
             }
 
-            size_t width() const {
+            size_t width() const
+            {
                 return Width;
             }
 
-            size_t height() const {
+            size_t height() const
+            {
                 return Height;
             }
 
@@ -63,8 +69,10 @@ namespace SL {
             std::vector<Block> Blocks;
         };
 
-        static void merge(std::vector<ImageRect>& rects) {
-            if (rects.size() <= 2) {
+        static void merge(std::vector<ImageRect>& rects)
+        {
+            if (rects.size() <= 2)
+            {
                 return; // make sure there is at least 2
             }
 
@@ -73,47 +81,50 @@ namespace SL {
             outrects.push_back(rects[0]);
 
             // horizontal scan
-            for (size_t i = 1; i < rects.size(); i++) {
+            for (size_t i = 1; i < rects.size(); i++)
+            {
                 if (outrects.back().right == rects[i].left &&
-                    outrects.back().bottom == rects[i].bottom)
-                {
+                        outrects.back().bottom == rects[i].bottom)
                     outrects.back().right = rects[i].right;
-                }
-                else {
+                else
                     outrects.push_back(rects[i]);
-                }
             }
 
-            if (outrects.size() <= 2) {
+            if (outrects.size() <= 2)
+            {
                 rects = std::move(outrects);
                 return; // make sure there is at least 2
             }
 
             rects.clear();
             // vertical scan
-            for (auto &otrect : outrects) {
-                auto found = std::find_if(rects.rbegin(), rects.rend(), [=](const ImageRect &rec) {
+            for (auto &otrect : outrects)
+            {
+                auto found = std::find_if(rects.rbegin(), rects.rend(), [ = ](const ImageRect & rec)
+                {
                     return rec.bottom == otrect.top && rec.left == otrect.left && rec.right == otrect.right;
                 });
 
-                if (found == rects.rend()) {
+                if (found == rects.rend())
                     rects.push_back(otrect);
-                }
-                else {
+                else
                     found->bottom = otrect.bottom;
-                }
             }
         }
 
 #define maxdist 256
 
-        static std::vector<ImageRect> GetRects(const BitMap<uint64_t>& map) {
+        static std::vector<ImageRect> GetRects(const BitMap<uint64_t>& map)
+        {
             std::vector<ImageRect> rects;
             rects.reserve(map.width() * map.height());
 
-            for (decltype(map.height())  x = 0; x < map.height(); ++x) {
-                for (decltype(map.width()) y = 0; y < map.width(); ++y) {
-                    if (map.get(x, y)) {
+            for (decltype(map.height())  x = 0; x < map.height(); ++x)
+            {
+                for (decltype(map.width()) y = 0; y < map.width(); ++y)
+                {
+                    if (map.get(x, y))
+                    {
                         ImageRect rect;
 
                         rect.top = x * maxdist;
@@ -129,8 +140,9 @@ namespace SL {
 
             return rects;
         }
-         
-        std::vector<ImageRect> GetDifs(const Image& oldImage, const Image& newImage) {
+
+        std::vector<ImageRect> GetDifs(const Image& oldImage, const Image& newImage)
+        {
             auto old_ptr = (const int*)StartSrc(oldImage);
             auto new_ptr = (const int*)StartSrc(newImage);
 
@@ -143,35 +155,38 @@ namespace SL {
             const auto line_rem = width % maxdist;
             const auto bottom_rem = height % maxdist;
 
-            BitMap<uint64_t> changes{
-              static_cast<size_t>(height_chunks) + 1,
-              static_cast<size_t>(width_chunks) + 1
+            BitMap<uint64_t> changes
+            {
+                static_cast<size_t>(height_chunks) + 1,
+                static_cast<size_t>(width_chunks) + 1
             };
 
-            const auto compare = [&](size_t x, size_t y, size_t npixels) {
-                if (!changes.get(x, y)) {
-                    if (memcmp(old_ptr, new_ptr, npixels * sizeof(int))) {
+            const auto compare = [&](size_t x, size_t y, size_t npixels)
+            {
+                if (!changes.get(x, y))
+                {
+                    if (memcmp(old_ptr, new_ptr, npixels * sizeof(int)))
                         changes.set(x, y);
-                    }
                 }
 
                 old_ptr += npixels;
                 new_ptr += npixels;
             };
 
-            for (int x = 0; x < height_chunks; ++x) {
-                for (int i = 0; i < maxdist; ++i) { // for each row in current line of chunks
-                    for (int y = 0; y < width_chunks; ++y) {
+            for (int x = 0; x < height_chunks; ++x)
+            {
+                for (int i = 0; i < maxdist; ++i)   // for each row in current line of chunks
+                {
+                    for (int y = 0; y < width_chunks; ++y)
                         compare(x, y, maxdist);
-                    } 
                     compare(x, width_chunks, line_rem);
                 }
             }
 
-            for (int i = 0; i < bottom_rem; ++i) {
-                for (int y = 0; y < width_chunks; ++y) {
+            for (int i = 0; i < bottom_rem; ++i)
+            {
+                for (int y = 0; y < width_chunks; ++y)
                     compare(height_chunks, y, maxdist);
-                }
 
                 compare(height_chunks, width_chunks, line_rem);
             }
@@ -186,7 +201,7 @@ namespace SL {
         {
             Monitor ret = {};
             ret.Index = index;
-         
+
             ret.Id = id;
             assert(n.size() + 1 < sizeof(ret.Name));
             memcpy(ret.Name, n.c_str(), n.size() + 1);
@@ -213,41 +228,135 @@ namespace SL {
             ret.BytesToNextRow = rowpadding;
             return ret;
         }
-        int Index(const Monitor &mointor) { return mointor.Index; }
-        int Id(const Monitor &mointor) { return mointor.Id; }
-        int Adapter(const Monitor &mointor) { return mointor.Adapter; }
-        int OffsetX(const Monitor &mointor) { return mointor.OffsetX; }
-        int OffsetY(const Monitor &mointor) { return mointor.OffsetY; }
-        void OffsetX(Monitor &mointor, int x) { mointor.OffsetX = x; }
-        void OffsetY(Monitor &mointor, int y) { mointor.OffsetY = y; }
-        int OffsetX(const Window &mointor) { return mointor.Position.x; }
-        int OffsetY(const Window &mointor) { return mointor.Position.y; }
-        void OffsetX(Window &mointor, int x) { mointor.Position.x = x; }
-        void OffsetY(Window &mointor, int y) { mointor.Position.y = y; }
-        const char *Name(const Monitor &mointor) { return mointor.Name; }
-        const char *Name(const Window &mointor) { return mointor.Name; }
-        int Height(const Monitor &mointor) { return mointor.Height; }
-        int Width(const Monitor &mointor) { return mointor.Width; }
-        void Height( Monitor &mointor, int h) { mointor.Height = h; }
-        void Width( Monitor &mointor, int w) { mointor.Width = w; }
-        int Height(const Window &mointor) { return mointor.Size.y; }
-        int Width(const Window &mointor) { return mointor.Size.x; }
-        void Height(Window &mointor, int h) { mointor.Size.y = h; }
-        void Width(Window &mointor, int w) { mointor.Size.x = w; } 
-        int Height(const ImageRect &rect) { return rect.bottom - rect.top; }
-        int Width(const ImageRect &rect) { return rect.right - rect.left; }
-        int Height(const Image &img) { return Height(img.Bounds); }
-        int Width(const Image &img) { return Width(img.Bounds); }
-        int X(const Point &p) { return p.x; }
-        int Y(const Point &p) { return p.y; }
-        const ImageRect &Rect(const Image &img) { return img.Bounds; } 
-        const ImageBGRA *GotoNextRow(const Image &img, const ImageBGRA* current) {
-            auto c = reinterpret_cast<const unsigned char*>(current); 
+        int Index(const Monitor &mointor)
+        {
+            return mointor.Index;
+        }
+        int Id(const Monitor &mointor)
+        {
+            return mointor.Id;
+        }
+        int Adapter(const Monitor &mointor)
+        {
+            return mointor.Adapter;
+        }
+        int OffsetX(const Monitor &mointor)
+        {
+            return mointor.OffsetX;
+        }
+        int OffsetY(const Monitor &mointor)
+        {
+            return mointor.OffsetY;
+        }
+        void OffsetX(Monitor &mointor, int x)
+        {
+            mointor.OffsetX = x;
+        }
+        void OffsetY(Monitor &mointor, int y)
+        {
+            mointor.OffsetY = y;
+        }
+        int OffsetX(const Window &mointor)
+        {
+            return mointor.Position.x;
+        }
+        int OffsetY(const Window &mointor)
+        {
+            return mointor.Position.y;
+        }
+        void OffsetX(Window &mointor, int x)
+        {
+            mointor.Position.x = x;
+        }
+        void OffsetY(Window &mointor, int y)
+        {
+            mointor.Position.y = y;
+        }
+        const char *Name(const Monitor &mointor)
+        {
+            return mointor.Name;
+        }
+        const char *Name(const Window &mointor)
+        {
+            return mointor.Name;
+        }
+        int Height(const Monitor &mointor)
+        {
+            return mointor.Height;
+        }
+        int Width(const Monitor &mointor)
+        {
+            return mointor.Width;
+        }
+        void Height( Monitor &mointor, int h)
+        {
+            mointor.Height = h;
+        }
+        void Width( Monitor &mointor, int w)
+        {
+            mointor.Width = w;
+        }
+        int Height(const Window &mointor)
+        {
+            return mointor.Size.y;
+        }
+        int Width(const Window &mointor)
+        {
+            return mointor.Size.x;
+        }
+        void Height(Window &mointor, int h)
+        {
+            mointor.Size.y = h;
+        }
+        void Width(Window &mointor, int w)
+        {
+            mointor.Size.x = w;
+        }
+        int Height(const ImageRect &rect)
+        {
+            return rect.bottom - rect.top;
+        }
+        int Width(const ImageRect &rect)
+        {
+            return rect.right - rect.left;
+        }
+        int Height(const Image &img)
+        {
+            return Height(img.Bounds);
+        }
+        int Width(const Image &img)
+        {
+            return Width(img.Bounds);
+        }
+        int X(const Point &p)
+        {
+            return p.x;
+        }
+        int Y(const Point &p)
+        {
+            return p.y;
+        }
+        const ImageRect &Rect(const Image &img)
+        {
+            return img.Bounds;
+        }
+        const ImageBGRA *GotoNextRow(const Image &img, const ImageBGRA* current)
+        {
+            auto c = reinterpret_cast<const unsigned char*>(current);
             return reinterpret_cast<const ImageBGRA*>(c + img.BytesToNextRow);
-        } 
-        bool isDataContiguous(const Image &img) { return img.isContiguous; }
+        }
+        bool isDataContiguous(const Image &img)
+        {
+            return img.isContiguous;
+        }
         // number of bytes per row, NOT including the Rowpadding
-        int RowStride(const Image &img) { return sizeof(ImageBGRA) * Width(img); }
-        const ImageBGRA *StartSrc(const Image &img) { return img.Data; }
+        int RowStride(const Image &img)
+        {
+            return sizeof(ImageBGRA) * Width(img);
+        }
+        const ImageBGRA *StartSrc(const Image &img)
+        {
+            return img.Data;
+        }
     } // namespace Screen_Capture
 } // namespace SL
