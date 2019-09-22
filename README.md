@@ -9,3 +9,8 @@ Laters:
 
 - enable win/macos support compilation(code is there from another lib already)
 - possibly will need some "virtual" devices so games can receive sensors data we send.
+
+
+Tools:
+ - protocol-compiler to make C++/Java source from out intermedial description of network messages (https://github.com/alexzk1/protocol-compiler)
+ 

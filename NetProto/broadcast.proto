@@ -1,0 +1,32 @@
+// more info here: https://cdcvs.fnal.gov/redmine/projects/protocol-compiler/wiki/C++_Generator
+//compiler can be found here too: https://github.com/alexzk1/protocol-compiler
+
+//once you do any changes here - regenerate C++/Java sources by running make_c_java.sh
+
+//send by client or server in case of need to show error
+reply Error {
+   int32 code;
+   string message;
+}
+
+
+//sent once client connects to server
+request connect {
+  int32 version_client;
+}
+
+//reply by server
+reply connected {
+  int32 server_version;
+}
+
+connect -> single connected | multiple Error;
+
+//sent by server to client - image
+request frame {
+   binary data;
+}
+
+reply frame_ack {
+}
+frame-> single frame_ack | multiple Error;
