@@ -139,13 +139,15 @@ namespace protocol {
 	    struct frame : public Base {
 		int64_t timestamp_ns;
 		int32_t flags;
+		int32_t w;
+		int32_t h;
 		std::vector<uint8_t> data;
 
 		void swap(frame&) noexcept(true);
 		virtual void deliverTo(Receiver&);
 	     public:
 		frame() :
-		    timestamp_ns(0), flags(0)
+		    timestamp_ns(0), flags(0), w(0), h(0)
 		    {}
 		virtual void marshal(protocol::ostream&) const;
 		virtual bool needsReply() const { return false; };
@@ -154,6 +156,8 @@ namespace protocol {
 		{
 		    return (timestamp_ns == o.timestamp_ns) &&
 			(flags == o.flags) &&
+			(w == o.w) &&
+			(h == o.h) &&
 			(data == o.data);
 		}
 	    };

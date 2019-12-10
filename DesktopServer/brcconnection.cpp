@@ -8,6 +8,7 @@
 #include "guard_on.h"
 #include "strutils.h"
 #include <chrono>
+#include "lodepng.h"
 
 //--------------------------------------------------------------------------------------------------------
 using namespace protocol::broadcast;
@@ -15,15 +16,50 @@ using namespace protocol::broadcast;
 using SocketWriteLock = spinlock;
 using ImageVector     = std::vector<uint8_t>;
 
-static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, ImageVector& dst)
-{
-    dst.resize(static_cast<size_t>(SL::Screen_Capture::Width(img) * SL::Screen_Capture::Height(img) * sizeof(SL::Screen_Capture::ImageBGRA)));
-    SL::Screen_Capture::Extract(img, dst.data(), dst.size());
-}
-
 constexpr static int32_t IMAGE_NOFLAGS = 0;
 constexpr static int32_t IMAGE_DELTA   = 1;
-constexpr static int32_t IMAGE_LZ4     = 2;
+constexpr static int32_t IMAGE_PNG     = 2;
+
+
+void* lodepng_malloc(size_t size)
+{
+#ifdef LODEPNG_MAX_ALLOC
+    if (size > LODEPNG_MAX_ALLOC) return 0;
+#endif
+    return malloc(size);
+}
+
+void* lodepng_realloc(void* ptr, size_t new_size)
+{
+#ifdef LODEPNG_MAX_ALLOC
+    if (new_size > LODEPNG_MAX_ALLOC) return 0;
+#endif
+    return realloc(ptr, new_size);
+}
+
+void lodepng_free(void* ptr)
+{
+    free(ptr);
+}
+
+static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply::frame& dst)
+{
+    pools::PooledVector<uint8_t> tmp;
+    const auto w = SL::Screen_Capture::Width(img);
+    const auto h = SL::Screen_Capture::Height(img);
+    tmp.resize(static_cast<size_t>(w * h * sizeof(SL::Screen_Capture::ImageBGRA)));
+    SL::Screen_Capture::Extract(img, tmp.data(), tmp.size());
+    dst.w = w;
+    dst.h = h;
+    dst.flags |= IMAGE_PNG;
+    unsigned char* png{nullptr};
+    size_t osz{0};
+    lodepng_encode_memory(&png, &osz, tmp.data(), w, h, LCT_RGBA, 8);
+
+    dst.data.resize(osz);
+    std::copy_n(png, osz, std::begin(dst.data));
+}
+
 
 // this holds requests from client according to protocol and basicaly is finite state machine
 class FromClientFsm : public protocol::broadcast::request::Receiver
@@ -122,7 +158,7 @@ private:
         {
             frame_new->timestamp_ns = elapsed();
             frame_new->flags = IMAGE_NOFLAGS;
-            ExtractAndConvertToBGRA(img, frame_new->data);
+            ExtractAndConvertToBGRA(img, *frame_new);
 
             LOCK_GUARD_ON(socket_write_lock);
             frame_new->marshal(os);
@@ -181,12 +217,11 @@ void BrcConnection::start()
 
                         }
                     }
+
+                    lock_guard_conditional grd(socket_write_lock, should_break_loop);
+                    if (grd.isLocked() && fsm.hadWriteCallLocked())
+                        network::writeToSocket(out_buffer, socket);
                 }
-
-
-                lock_guard_conditional grd(socket_write_lock, should_break_loop);
-                if (grd.isLocked() && fsm.hadWriteCallLocked())
-                    network::writeToSocket(out_buffer, socket);
             }
         }
         catch (std::exception& e)

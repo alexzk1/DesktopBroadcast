@@ -1,10 +1,13 @@
 package biz.an_droid.desktopbroadcast;
 
 import android.annotation.SuppressLint;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.ImageView;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import biz.an_droid.desktopbroadcast.network.ClientConnector;
@@ -55,7 +58,7 @@ public class FullscreenActivity extends AppCompatActivity
         }
     };
     ClientConnector conn = null;
-    private View mContentView;
+    private ImageView mContentView;
     private final Runnable mHidePart2Runnable = new Runnable()
     {
         @SuppressLint("InlinedApi")
@@ -165,7 +168,18 @@ public class FullscreenActivity extends AppCompatActivity
         @Override
         public void onFrameCame(broadcast.Reply.frame frame)
         {
-
+            if ((frame.flags & 2) != 0)
+            {
+                final Bitmap bmp = BitmapFactory.decodeByteArray(frame.data, 0, frame.data.length);
+                mContentView.post(new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        mContentView.setImageBitmap(bmp);
+                    }
+                });
+            }
         }
     };
 

@@ -30,11 +30,13 @@ connect -> single connected | multiple Error;
 
 //bit flags for frame.flags (not supported by proto compiler)
 //IMAGE_DELTA = 1, //current packet is delta image to prev
-//IMAGE_LZ4   = 2, //current data packet is LZ4 compressed
+//IMAGE_PNG   = 2, //current data packet is PNG file
 
 //sent by server to client - image
 reply frame {
    int64  timestamp_ns; //current time stamp difference measured in nano seconds since start of capture (i.e. 1st frame will be close to zero)
    int32  flags;
+   int32  w; //true width of stored bitmap in pixels
+   int32  h;//true height of stored bitmap in pixels
    binary data;
 }

@@ -858,7 +858,7 @@ public abstract class broadcast implements java.io.Serializable {
         static void marshal(java.io.DataOutputStream out, frame v) throws java.io.IOException
         {
             out.writeByte(81);
-            out.writeByte(6);
+            out.writeByte(10);
 
             out.writeByte(18);
             out.writeByte(-104);
@@ -869,6 +869,16 @@ public abstract class broadcast implements java.io.Serializable {
             out.writeByte(104);
             out.writeByte(-42);
             marshal(out, v.flags);
+
+            out.writeByte(18);
+            out.writeByte(1);
+            out.writeByte(-122);
+            marshal(out, v.w);
+
+            out.writeByte(18);
+            out.writeByte(-61);
+            out.writeByte(-112);
+            marshal(out, v.h);
 
             out.writeByte(18);
             out.writeByte(127);
@@ -950,7 +960,7 @@ public abstract class broadcast implements java.io.Serializable {
             if (flds < 0)
                 throw new java.io.IOException("invalid array size");
 
-            java.util.BitSet flg = new java.util.BitSet(3);
+            java.util.BitSet flg = new java.util.BitSet(5);
             frame d = new frame();
 
             for (int ii = 0; ii < flds; ii += 2) {
@@ -969,9 +979,23 @@ public abstract class broadcast implements java.io.Serializable {
                 }
                 break;
 
-             case 32568: //binary data
+             case 390: //int32 w
                 {
                     flg.set(2);
+                    d.w = unmarshal_int32(in);
+                }
+                break;
+
+             case -15472: //int32 h
+                {
+                    flg.set(3);
+                    d.h = unmarshal_int32(in);
+                }
+                break;
+
+             case 32568: //binary data
+                {
+                    flg.set(4);
                     d.data = unmarshal_binary(in);
                 }
                 break;
@@ -981,7 +1005,7 @@ public abstract class broadcast implements java.io.Serializable {
                 }
             }
 
-            if (flg.cardinality() != 3)
+            if (flg.cardinality() != 5)
                 throw new java.io.IOException("missing required field(s)");
 
             return d;
@@ -1050,7 +1074,7 @@ public abstract class broadcast implements java.io.Serializable {
         static void marshal(java.nio.ByteBuffer out, frame v) throws java.io.IOException
         {
             out.put((byte)81);
-            out.put((byte)6);
+            out.put((byte)10);
 
             out.put((byte)18);
             out.put((byte)-104);
@@ -1061,6 +1085,16 @@ public abstract class broadcast implements java.io.Serializable {
             out.put((byte)104);
             out.put((byte)-42);
             marshal(out, v.flags);
+
+            out.put((byte)18);
+            out.put((byte)1);
+            out.put((byte)-122);
+            marshal(out, v.w);
+
+            out.put((byte)18);
+            out.put((byte)-61);
+            out.put((byte)-112);
+            marshal(out, v.h);
 
             out.put((byte)18);
             out.put((byte)127);
@@ -1142,7 +1176,7 @@ public abstract class broadcast implements java.io.Serializable {
             if (flds < 0)
                 throw new java.io.IOException("invalid array size");
 
-            java.util.BitSet flg = new java.util.BitSet(3);
+            java.util.BitSet flg = new java.util.BitSet(5);
             frame d = new frame();
 
             for (int ii = 0; ii < flds; ii += 2) {
@@ -1161,9 +1195,23 @@ public abstract class broadcast implements java.io.Serializable {
                 }
                 break;
 
-             case 32568: //binary data
+             case 390: //int32 w
                 {
                     flg.set(2);
+                    d.w = unmarshal_int32(in);
+                }
+                break;
+
+             case -15472: //int32 h
+                {
+                    flg.set(3);
+                    d.h = unmarshal_int32(in);
+                }
+                break;
+
+             case 32568: //binary data
+                {
+                    flg.set(4);
                     d.data = unmarshal_binary(in);
                 }
                 break;
@@ -1173,7 +1221,7 @@ public abstract class broadcast implements java.io.Serializable {
                 }
             }
 
-            if (flg.cardinality() != 3)
+            if (flg.cardinality() != 5)
                 throw new java.io.IOException("missing required field(s)");
 
             return d;
@@ -1384,15 +1432,19 @@ public abstract class broadcast implements java.io.Serializable {
         }
 
         public static class frame extends Reply {
-            static final long serialVersionUID = 385019932L;
+            static final long serialVersionUID = -2055670749L;
             public long timestamp_ns;
             public int flags;
+            public int w;
+            public int h;
             public byte[] data;
 
             public frame()
             {
                 timestamp_ns = 0;
                 flags = 0;
+                w = 0;
+                h = 0;
                 data = new byte[0];
             }
 
@@ -1456,6 +1508,8 @@ public abstract class broadcast implements java.io.Serializable {
 
                     return timestamp_ns == o.timestamp_ns && 
                         flags == o.flags && 
+                        w == o.w && 
+                        h == o.h && 
                         broadcast.equals(data, o.data);
                 }
 
@@ -1466,6 +1520,8 @@ public abstract class broadcast implements java.io.Serializable {
             {
                 return (new Long(timestamp_ns).hashCode()) + 
                         flags + 
+                        w + 
+                        h + 
                         java.util.Arrays.hashCode(data);
             }
 
@@ -1479,6 +1535,14 @@ public abstract class broadcast implements java.io.Serializable {
 
                 buf.append("    int32 flags = ");
                 buf.append(flags);
+                buf.append(";\n");
+
+                buf.append("    int32 w = ");
+                buf.append(w);
+                buf.append(";\n");
+
+                buf.append("    int32 h = ");
+                buf.append(h);
                 buf.append(";\n");
 
                 buf.append("    binary data = ");
