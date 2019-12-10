@@ -155,7 +155,6 @@ void BrcConnection::start()
             {
                 boost::asio::streambuf in_buffer;
                 boost::asio::streambuf out_buffer;
-                std::istream is(&in_buffer);
                 std::ostream os(&out_buffer);
 
                 SocketWriteLock socket_write_lock;
@@ -169,16 +168,25 @@ void BrcConnection::start()
                 while (!should_break_loop())
                 {
                     const auto readable = network::readableBytes(socket); //debuger friendly
-                    if (readable > 3 && network::readFromSocket(socket, in_buffer))
-                    {
-                        //class FromClientFsm handles current message in stream and puts output to os
-                        request::Base::unmarshal(is)->deliverTo(fsm);
-                    }
 
-                    lock_guard_conditional grd(socket_write_lock, should_break_loop);
-                    if (grd.isLocked() && fsm.hadWriteCallLocked())
-                        network::writeToSocket(out_buffer, socket);
+                    if (readable > 0 && network::readFromSocket(socket, in_buffer, readable))
+                    {
+                        std::istream is(&in_buffer);
+                        try
+                        {
+                            request::Base::unmarshal(is)->deliverTo(fsm);
+                        }
+                        catch (...)
+                        {
+
+                        }
+                    }
                 }
+
+
+                lock_guard_conditional grd(socket_write_lock, should_break_loop);
+                if (grd.isLocked() && fsm.hadWriteCallLocked())
+                    network::writeToSocket(out_buffer, socket);
             }
         }
         catch (std::exception& e)

@@ -2,6 +2,7 @@ package biz.an_droid.desktopbroadcast.network;
 
 import biz.an_droid.desktopbroadcast.proto.broadcast;
 
+import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -61,18 +62,40 @@ public class ClientConnector
             {
                 socket.connect(endPoint);
                 info.marshal(socket.getOutputStream());
-                DataInputStream dis = new DataInputStream(socket.getInputStream());
+                BufferedInputStream bis = new BufferedInputStream(socket.getInputStream());
+                DataInputStream dis = new DataInputStream(bis);
+                final int limit = 3 * (info.screen_height * info.screen_width * 4 + 100);
                 while (!needStop.get())
                 {
                     try
                     {
-                        if (dis.available() > 3)
+                        if (dis.available() > 0)
                         {
-                            broadcast.Reply r = broadcast.Reply.unmarshal(dis);
-                            if (r instanceof broadcast.Reply.frame)
+                            dis.mark(limit);
+                            try
                             {
-                                broadcast.Reply.frame fr = (broadcast.Reply.frame) r;
-                                callback_frame.onFrameCame(fr);
+                                broadcast.Reply r = broadcast.Reply.unmarshal(dis);
+                                try
+                                {
+                                    if (r instanceof broadcast.Reply.frame)
+                                    {
+                                        broadcast.Reply.frame fr = (broadcast.Reply.frame) r;
+                                        callback_frame.onFrameCame(fr);
+                                    }
+                                } catch (Exception e)
+                                {
+                                    e.printStackTrace();
+                                }
+                            } catch (Exception ignored)
+                            {
+                                dis.reset();
+                                try
+                                {
+                                    Thread.sleep(50);
+                                } catch (InterruptedException e)
+                                {
+                                    break;
+                                }
                             }
                         }
 

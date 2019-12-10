@@ -7,7 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
-#include <thread>
+#include "runners.h"
 
 namespace SL
 {
@@ -50,7 +50,7 @@ namespace SL
             // allreads share the same data!!!
             std::shared_ptr<Thread_Data> Thread_Data_;
 
-            std::thread Thread_;
+            utility::runner_t Thread_;
 
             ScreenCaptureManager()
             {
@@ -68,22 +68,18 @@ namespace SL
             {
                 Thread_Data_->CommonData_.TerminateThreadsEvent = true; // set the exit flag for the threads
                 Thread_Data_->CommonData_.Paused = false;               // unpaused the threads to let everything exit
-                if (Thread_.get_id() == std::this_thread::get_id())
-                    Thread_.detach();
-                else
-                    if (Thread_.joinable())
-                        Thread_.join();
+                Thread_.reset();
                 ScreenCaptureManagerExists = false;
             }
             void start()
             {
-                Thread_ = std::thread([&]()
+                Thread_ = utility::startNewRunner([&](auto should_int)
                 {
                     ThreadManager ThreadMgr;
 
                     ThreadMgr.Init(Thread_Data_);
 
-                    while (!Thread_Data_->CommonData_.TerminateThreadsEvent)
+                    while (!Thread_Data_->CommonData_.TerminateThreadsEvent && !(*should_int))
                     {
 
                         if (Thread_Data_->CommonData_.ExpectedErrorEvent)

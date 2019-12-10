@@ -208,11 +208,12 @@ namespace network
         virtual ~tcpstream() = default;
     };
 
-    size_t inline readFromSocket(const SocketPtr& src, boost::asio::streambuf& dest)
+    size_t inline readFromSocket(const SocketPtr& src, boost::asio::streambuf& dest, size_t avail = 0)
     {
+        if (!avail)
+            avail = readableBytes(src);
         // reserve bytes in output sequence
-        auto bufs = dest.prepare(std::max(readableBytes(src), 8192ul));
-        const size_t n = src->receive(bufs);
+        const size_t n = src->receive(dest.prepare(avail));
         // received data is "committed" from output sequence to input sequence
         dest.commit(n);
         return n;
