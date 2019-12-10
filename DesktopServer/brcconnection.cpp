@@ -63,7 +63,8 @@ static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply:
     lodepng_encode_memory(&png, &osz, tmp.data(), w, h, LCT_RGBA, 8);
 
     dst.data.resize(osz);
-    std::copy_n(png, osz, std::begin(dst.data));
+    memcpy(dst.data.data(), png, osz);
+    lodepng_free(png);
 }
 
 
