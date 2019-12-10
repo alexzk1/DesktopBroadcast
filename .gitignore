@@ -31,3 +31,5 @@
 *.out
 *.app
 [bB]uild*/
+*.pro.user
+*.pro.user.*
