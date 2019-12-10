@@ -15,7 +15,7 @@ using namespace protocol::broadcast;
 using SocketWriteLock = spinlock;
 using ImageVector     = std::vector<uint8_t>;
 
-static void ExtractAndConvertToRGBA(const SL::Screen_Capture::Image &img, ImageVector& dst)
+static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, ImageVector& dst)
 {
     dst.resize(static_cast<size_t>(SL::Screen_Capture::Width(img) * SL::Screen_Capture::Height(img) * sizeof(SL::Screen_Capture::ImageBGRA)));
     SL::Screen_Capture::Extract(img, dst.data(), dst.size());
@@ -110,7 +110,7 @@ private:
         {
             frame_new->timestamp_ns = elapsed();
             frame_new->flags = IMAGE_NOFLAGS;
-            ExtractAndConvertToRGBA(img, frame_new->data);
+            ExtractAndConvertToBGRA(img, frame_new->data);
 
             LOCK_GUARD_ON(socket_write_lock);
             frame_new->marshal(os);
