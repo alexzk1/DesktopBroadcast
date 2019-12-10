@@ -2,6 +2,7 @@
 #include "internal/SCCommon.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -15,28 +16,26 @@ namespace
     public:
         UniqueTextProperty()
         {
-            p.value = nullptr;
+            init(p);
         }
 
         UniqueTextProperty(const UniqueTextProperty&) = delete;
         UniqueTextProperty& operator=(const UniqueTextProperty&) = delete;
 
-        UniqueTextProperty(UniqueTextProperty&& other):
-            p{other.p}
+        UniqueTextProperty(UniqueTextProperty&& other)
         {
-            other.p = XTextProperty{};
+            move(other);
         }
 
         UniqueTextProperty& operator=(UniqueTextProperty&& other)
         {
-            swap(*this, other);
+            move(other);
             return *this;
         }
 
         friend void swap(UniqueTextProperty& lhs, UniqueTextProperty& rhs)
         {
-            using std::swap;
-            swap(lhs.p, rhs.p);
+            std::swap(lhs.p, rhs.p);
         }
 
         ~UniqueTextProperty()
@@ -45,48 +44,45 @@ namespace
                 XFree(p.value);
         }
 
-        auto& get()
+        static UniqueTextProperty GetWMName(Display* display, Window window)
         {
-            return p;
+            UniqueTextProperty x;
+            XGetWMName(display, window, &x.p);
+            return x;
+        }
+
+        auto TextPropertyToStrings(Display* dpy) const
+        {
+            std::vector<std::string> result;
+
+            char **list = nullptr;
+            int n_strings = 0;
+            auto status = XmbTextPropertyToTextList(dpy, &p, &list, &n_strings);
+
+            if (status < Success or not n_strings or not * list)
+                return result;
+
+            result.reserve(n_strings);
+            for (int i = 0; i < n_strings; ++i)
+                result.emplace_back(list[i]);
+
+            XFreeStringList(list);
+
+            return result;
         }
 
     private:
+        void move(UniqueTextProperty& other)
+        {
+            p = std::move(other.p);
+            init(other.p);
+        }
+        void static init(XTextProperty& p)
+        {
+            memset(&p, 0, sizeof(XTextProperty));
+        }
         XTextProperty p;
     };
-
-    auto GetWMName(Display* display, Window window)
-    {
-        auto x = UniqueTextProperty{};
-        XGetWMName(display, window, &x.get());
-        return x;
-    }
-
-    auto TextPropertyToStrings(
-        Display* dpy,
-        const XTextProperty& prop
-    )
-    {
-        char **list;
-        auto n_strings = 0;
-        auto result = std::vector<std::string> {};
-
-        auto status = XmbTextPropertyToTextList(
-                          dpy,
-                          &prop,
-                          &list,
-                          &n_strings
-                      );
-
-        if (status < Success or not n_strings or not * list)
-            return result;
-
-        for (auto i = 0; i < n_strings; ++i)
-            result.emplace_back(list[i]);
-
-        XFreeStringList(list);
-
-        return result;
-    }
 }
 
 namespace SL
@@ -98,8 +94,8 @@ namespace SL
         {
             using namespace std::string_literals;
 
-            auto wm_name = GetWMName(display, window);
-            auto candidates = TextPropertyToStrings(display, wm_name.get());
+            auto wm_name{UniqueTextProperty::GetWMName(display, window)};
+            auto candidates = wm_name.TextPropertyToStrings(display);
             Window w = {};
             w.Handle = reinterpret_cast<size_t>(window);
 
@@ -109,18 +105,18 @@ namespace SL
             w.Position = Point{ wndattr.x, wndattr.y };
             w.Size = Point{ wndattr.width, wndattr.height };
 
-            auto name = candidates.empty() ? ""s : std::move(candidates.front());
-            std::transform(name.begin(), name.end(), std::begin(w.Name), ::tolower);
+            w.Name = (candidates.empty()) ? "" : std::move(candidates.front());
+            std::transform(w.Name.begin(), w.Name.end(), w.Name.begin(), ::tolower);
             wnd.push_back(w);
         }
 
         std::vector<Window> GetWindows()
         {
             auto* display = XOpenDisplay(NULL);
-            Atom a = XInternAtom(display, "_NET_CLIENT_LIST", true);
+            const Atom a = XInternAtom(display, "_NET_CLIENT_LIST", true);
             Atom actualType;
             int format;
-            unsigned long numItems, bytesAfter;
+            unsigned long numItems = 0, bytesAfter = 0;
             unsigned char* data = 0;
             int status = XGetWindowProperty(display,
                                             XDefaultRootWindow(display),
@@ -128,16 +124,16 @@ namespace SL
                                             0L,
                                             (~0L),
                                             false,
-                                            AnyPropertyType,
+                                            XA_WINDOW,
                                             &actualType,
                                             &format,
                                             &numItems,
                                             &bytesAfter,
                                             &data);
             std::vector<Window> ret;
-            if (status >= Success && numItems)
+            if (status == Success && numItems)
             {
-                auto array = (XID*)data;
+                auto array = reinterpret_cast<::Window*>(data);
                 for (decltype(numItems) k = 0; k < numItems; k++)
                 {
                     auto w = array[k];

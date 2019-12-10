@@ -5,6 +5,11 @@
 #include <QApplication>
 #include <chrono>
 
+
+#ifdef OS_LINUX
+    #include <X11/Xlib.h>
+#endif
+
 static void my_handler(int)
 {
     bool expected = false;
@@ -31,6 +36,9 @@ int main(int argc, char *argv[])
     sigaction(SIGINT, &sigIntHandler, NULL);
     sigaction(SIGTERM, &sigIntHandler, NULL);
 
+#ifdef OS_LINUX
+    XInitThreads();
+#endif
 
     //const unsigned short server_port =  vm["lport"].as<uint16_t>();
     const unsigned short server_port =  11222;

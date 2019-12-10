@@ -8,6 +8,7 @@
 #include <thread>
 #include <vector>
 
+
 #if defined(WINDOWS) || defined(WIN32)
     #if defined(SC_LITE_DLL)
         #define SC_LITE_EXTERN __declspec(dllexport)
@@ -40,7 +41,7 @@ namespace SL
 
             Point Size;
             // Name will always be lower case. It is converted to lower case internally by the library for comparisons
-            char Name[128] = {0};
+            std::string Name;
         };
         struct SC_LITE_EXTERN Monitor
         {
@@ -57,7 +58,7 @@ namespace SL
             int OffsetY = 0;
             int OriginalOffsetX = 0;
             int OriginalOffsetY = 0;
-            char Name[128] = {0};
+            std::string Name;
             float Scaling = 1.0f;
         };
 
@@ -80,8 +81,7 @@ namespace SL
         SC_LITE_EXTERN int OffsetY(const Window &mointor);
         SC_LITE_EXTERN void OffsetX(Window &mointor, int x);
         SC_LITE_EXTERN void OffsetY(Window &mointor, int y);
-        SC_LITE_EXTERN const char *Name(const Monitor &mointor);
-        SC_LITE_EXTERN const char *Name(const Window &mointor);
+
         SC_LITE_EXTERN int Height(const Monitor &mointor);
         SC_LITE_EXTERN int Width(const Monitor &mointor);
         SC_LITE_EXTERN void Height(Monitor &mointor, int h);

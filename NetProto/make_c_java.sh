@@ -12,9 +12,11 @@ function test_pc {
    fi
 }
 
+ANDR_FOLDER="../Android/DesktopBroadcast/app/src/main/java/biz/an_droid/desktopbroadcast/proto/"
+
 rm broadcast.cpp
 rm broadcast.h
-rm broadcast.java
+rm $ANDR_FOLDER/broadcast.java
 
 test_pc
 echo 'Going to compile network protocol'
@@ -22,6 +24,6 @@ echo 'Going to compile network protocol'
 pc -l c++ --c++-17 broadcast.proto
 pc -l java --java-use-pkg biz.an_droid.desktopbroadcast.proto broadcast.proto
 
-mv ./broadcast.java ../Android/DesktopBroadcast/app/src/main/java/biz/an_droid/desktopbroadcast/proto/
+mv ./broadcast.java $ANDR_FOLDER
 
 echo 'Network protocol is compiled'

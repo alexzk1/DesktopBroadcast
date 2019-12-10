@@ -5,813 +5,896 @@
 #include <stdexcept>
 #include "broadcast.h"
 
-namespace protocol {
-namespace broadcast {
-
-static void marshal(protocol::ostream&, request::connect const&);
-static void unmarshal(protocol::istream&, request::connect&);
-static void marshal(protocol::ostream&, reply::Error const&);
-static void unmarshal(protocol::istream&, reply::Error&);
-static void marshal(protocol::ostream&, reply::connected const&);
-static void unmarshal(protocol::istream&, reply::connected&);
-static void marshal(protocol::ostream&, reply::frame const&);
-static void unmarshal(protocol::istream&, reply::frame&);
-
-request::Base::~Base()
+namespace protocol
 {
-}
-
-request::Receiver::~Receiver()
-{
-}
-
-
-reply::Base::~Base()
-{
-}
-
-reply::Receiver::~Receiver()
-{
-}
-
-static void emitRawInt(protocol::ostream& os, protocol::byte const tag, int64_t const val)
-{
-    protocol::byte buf[1 + sizeof(int64_t)];
-
-    if (val >= -0x80 && val <= 0x7f) {
-	buf[0] = protocol::byte((tag & 0xf0) + 1);
-	buf[1] = protocol::byte(val);
-	os.write(buf, 2);
-    } else if (val >= -0x8000 && val <= 0x7fff) {
-	buf[0] = protocol::byte((tag & 0xf0) + 2);
-	buf[1] = protocol::byte(val >> 8);
-	buf[2] = protocol::byte(val);
-	os.write(buf, 3);
-    } else if (val >= -0x800000 && val <= 0x7fffff) {
-	buf[0] = protocol::byte((tag & 0xf0) + 3);
-	buf[1] = protocol::byte(val >> 16);
-	buf[2] = protocol::byte(val >> 8);
-	buf[3] = protocol::byte(val);
-	os.write(buf, 4);
-    } else if (val >= -0x80000000ll && val <= 0x7fffffffll) {
-	buf[0] = protocol::byte((tag & 0xf0) + 4);
-	buf[1] = protocol::byte(val >> 24);
-	buf[2] = protocol::byte(val >> 16);
-	buf[3] = protocol::byte(val >> 8);
-	buf[4] = protocol::byte(val);
-	os.write(buf, 5);
-    } else if (val >= -0x8000000000ll && val <= 0x7fffffffffll) {
-	buf[0] = protocol::byte((tag & 0xf0) + 5);
-	buf[1] = protocol::byte(val >> 32);
-	buf[2] = protocol::byte(val >> 24);
-	buf[3] = protocol::byte(val >> 16);
-	buf[4] = protocol::byte(val >> 8);
-	buf[5] = protocol::byte(val);
-	os.write(buf, 6);
-    } else if (val >= -0x800000000000ll && val <= 0x7fffffffffffll) {
-	buf[0] = protocol::byte((tag & 0xf0) + 6);
-	buf[1] = protocol::byte(val >> 40);
-	buf[2] = protocol::byte(val >> 32);
-	buf[3] = protocol::byte(val >> 24);
-	buf[4] = protocol::byte(val >> 16);
-	buf[5] = protocol::byte(val >> 8);
-	buf[6] = protocol::byte(val);
-	os.write(buf, 7);
-    } else if (val >= -0x80000000000000ll && val <= 0x7fffffffffffffll) {
-	buf[0] = protocol::byte((tag & 0xf0) + 7);
-	buf[1] = protocol::byte(val >> 48);
-	buf[2] = protocol::byte(val >> 40);
-	buf[3] = protocol::byte(val >> 32);
-	buf[4] = protocol::byte(val >> 24);
-	buf[5] = protocol::byte(val >> 16);
-	buf[6] = protocol::byte(val >> 8);
-	buf[7] = protocol::byte(val);
-	os.write(buf, 8);
-    } else {
-	buf[0] = protocol::byte((tag & 0xf0) + 8);
-	buf[1] = protocol::byte(val >> 56);
-	buf[2] = protocol::byte(val >> 48);
-	buf[3] = protocol::byte(val >> 40);
-	buf[4] = protocol::byte(val >> 32);
-	buf[5] = protocol::byte(val >> 24);
-	buf[6] = protocol::byte(val >> 16);
-	buf[7] = protocol::byte(val >> 8);
-	buf[8] = protocol::byte(val);
-	os.write(buf, 9);
-    }
-}
-
-static int64_t consumeRawInt(protocol::istream& is, protocol::byte const expTag)
-{
-    protocol::byte tag;
-
-    if (is >> tag) {
-	int const len = tag & 0xf;
-
-	if ((tag & 0xf0) == (expTag & 0xf0) && len > 0 && len <= 8) {
-	    int32_t val[2];
-
-	    if (is.read(reinterpret_cast<protocol::byte*>(&val), len))
-		return ((int64_t(ntohl(val[0])) << 32) + int64_t(ntohl(val[1]))) >>
-		    ((sizeof(int64_t) - len) * 8);
-	} else
-	    throw std::runtime_error("bad tag value");
-    }
-    throw std::runtime_error("unexpected end of file");
-}
-
-static size_t readLength(protocol::istream& is, protocol::byte const expTag)
-{
-    int64_t const val = consumeRawInt(is, expTag);
-
-    if (val >= 0 && val <= 2147483647)
-	return size_t(val);
-    else
-	throw std::runtime_error("length field out of range");
-}
-
-static int16_t readFieldLabel(protocol::istream& is, protocol::byte const expTag)
-{
-    int64_t const val = consumeRawInt(is, expTag);
-
-    if (val >= -32768 && val <= 32767)
-	return int16_t(val);
-    else
-	throw std::runtime_error("field out of range");
-}
-
-static void unmarshal(protocol::istream& is, int16_t& v)
-{
-    int64_t const vv = consumeRawInt(is, 0x10);
-
-    if (vv >= -0x8000 && vv <= 0x7fff)
-	v = int16_t(vv);
-    else
-	throw std::runtime_error("int16 out of range");
-}
-
-static void marshal(protocol::ostream& os, int32_t const& v)
-{
-    emitRawInt(os, 0x10, v);
-}
-
-static void unmarshal(protocol::istream& is, int32_t& v)
-{
-    int64_t const vv = consumeRawInt(is, 0x10);
-
-    if (vv >= -0x80000000ll && vv <= 0x7fffffffll)
-	v = int32_t(vv);
-    else
-	throw std::runtime_error("int32 out of range");
-}
-
-static void marshal(protocol::ostream& os, int64_t const& v)
-{
-    emitRawInt(os, 0x10, v);
-}
-
-static void unmarshal(protocol::istream& is, int64_t& v)
-{
-    v = consumeRawInt(is, 0x10);
-}
-
-static void marshal(protocol::ostream& os, std::string const& v)
-{
-    emitRawInt(os, 0x40, v.size());
-    os.write(v.data(), v.size());
-}
-
-static void unmarshal(protocol::istream& is, std::string& v)
-{
-    size_t const len = readLength(is, 0x40);
-    std::string tmp;
-
-    tmp.resize(len);
-    is.read(&tmp[0], len);
-    v.swap(tmp);
-}
-
-template<typename T>
-void marshal(protocol::ostream& os, std::vector<T> const& v)
-{
-    emitRawInt(os, 0x50, v.size());
-    for (auto const& ii : v)
-	marshal(os, ii);
-}
-
-template <typename T>
-void unmarshal(protocol::istream& is, std::vector<T>& v)
-{
-    std::vector<T> vec;
-    size_t len = readLength(is, 0x50);
-
-    vec.reserve(len);
-    while (len--) {
-	T tmp;
-
-	unmarshal(is, tmp);
-	vec.push_back(std::move(tmp));
-    }
-    v.swap(vec);
-}
-
-template <>
-void marshal(protocol::ostream& os, std::vector<uint8_t> const& v)
-{
-    emitRawInt(os, 0x30, v.size());
-    os.write(reinterpret_cast<protocol::byte const*>(&v[0]), v.size());
-}
-
-template <>
-void unmarshal(protocol::istream& is, std::vector<uint8_t>& v)
-{
-    size_t const len = readLength(is, 0x30);
-    std::vector<uint8_t> tmp;
-
-    tmp.resize(len);
-    is.read(reinterpret_cast<protocol::byte*>(&tmp[0]), len);
-    v.swap(tmp);
-}
-
-static void unmarshal(protocol::istream& is, request::connect& v)
-{
-    uint32_t flg = 0;
-    size_t const total = readLength(is, 0x50);
-
-    for (size_t ii = 0; ii < total; ii += 2) {
-	switch (readFieldLabel(is, 0x10)) {
-	 case 6831:
-	    unmarshal(is, v.version_client);
-	    flg |= 0x1;
-	    break;
-
-	 case -32007:
-	    unmarshal(is, v.screen_width);
-	    flg |= 0x2;
-	    break;
-
-	 case 1134:
-	    unmarshal(is, v.screen_height);
-	    flg |= 0x4;
-	    break;
-
-	 case 21189:
-	    unmarshal(is, v.win_caption);
-	    flg |= 0x8;
-	    break;
-
-	 default:
-	    throw std::runtime_error("found unknown field");
-	}
-    }
-
-    if (flg != 0xf)
-	throw std::runtime_error("missing required field(s) while unmarshalling 'request::connect' type");
-}
-
-static void unmarshal(protocol::istream& is, reply::Error& v)
-{
-    uint32_t flg = 0;
-    size_t const total = readLength(is, 0x50);
-
-    for (size_t ii = 0; ii < total; ii += 2) {
-	switch (readFieldLabel(is, 0x10)) {
-	 case 26516:
-	    unmarshal(is, v.code);
-	    flg |= 0x1;
-	    break;
-
-	 case 12546:
-	    unmarshal(is, v.message);
-	    flg |= 0x2;
-	    break;
-
-	 default:
-	    throw std::runtime_error("found unknown field");
-	}
-    }
-
-    if (flg != 0x3)
-	throw std::runtime_error("missing required field(s) while unmarshalling 'reply::Error' type");
-}
-
-static void unmarshal(protocol::istream& is, reply::connected& v)
-{
-    uint32_t flg = 0;
-    size_t const total = readLength(is, 0x50);
-
-    for (size_t ii = 0; ii < total; ii += 2) {
-	switch (readFieldLabel(is, 0x10)) {
-	 case -3889:
-	    unmarshal(is, v.server_version);
-	    flg |= 0x1;
-	    break;
-
-	 default:
-	    throw std::runtime_error("found unknown field");
-	}
-    }
-
-    if (flg != 0x1)
-	throw std::runtime_error("missing required field(s) while unmarshalling 'reply::connected' type");
-}
-
-static void unmarshal(protocol::istream& is, reply::frame& v)
-{
-    uint32_t flg = 0;
-    size_t const total = readLength(is, 0x50);
-
-    for (size_t ii = 0; ii < total; ii += 2) {
-	switch (readFieldLabel(is, 0x10)) {
-	 case -26436:
-	    unmarshal(is, v.timestamp_ns);
-	    flg |= 0x1;
-	    break;
-
-	 case 26838:
-	    unmarshal(is, v.flags);
-	    flg |= 0x2;
-	    break;
-
-	 case 32568:
-	    unmarshal(is, v.data);
-	    flg |= 0x4;
-	    break;
-
-	 default:
-	    throw std::runtime_error("found unknown field");
-	}
-    }
-
-    if (flg != 0x7)
-	throw std::runtime_error("missing required field(s) while unmarshalling 'reply::frame' type");
-}
-
-static void marshal(protocol::ostream& os, request::connect const& v)
-{
+    namespace broadcast
     {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(8)
-	};
 
-	os.write(data, sizeof(data));
+        static void marshal(protocol::ostream&, request::connect const&);
+        static void unmarshal(protocol::istream&, request::connect&);
+        static void marshal(protocol::ostream&, reply::Error const&);
+        static void unmarshal(protocol::istream&, reply::Error&);
+        static void marshal(protocol::ostream&, reply::connected const&);
+        static void unmarshal(protocol::istream&, reply::connected&);
+        static void marshal(protocol::ostream&, reply::frame const&);
+        static void unmarshal(protocol::istream&, reply::frame&);
+
+        request::Base::~Base()
+        {
+        }
+
+        request::Receiver::~Receiver()
+        {
+        }
+
+
+        reply::Base::~Base()
+        {
+        }
+
+        reply::Receiver::~Receiver()
+        {
+        }
+
+        static void emitRawInt(protocol::ostream& os, protocol::byte const tag, int64_t const val)
+        {
+            protocol::byte buf[1 + sizeof(int64_t)];
+
+            if (val >= -0x80 && val <= 0x7f)
+            {
+                buf[0] = protocol::byte((tag & 0xf0) + 1);
+                buf[1] = protocol::byte(val);
+                os.write(buf, 2);
+            }
+            else
+                if (val >= -0x8000 && val <= 0x7fff)
+                {
+                    buf[0] = protocol::byte((tag & 0xf0) + 2);
+                    buf[1] = protocol::byte(val >> 8);
+                    buf[2] = protocol::byte(val);
+                    os.write(buf, 3);
+                }
+                else
+                    if (val >= -0x800000 && val <= 0x7fffff)
+                    {
+                        buf[0] = protocol::byte((tag & 0xf0) + 3);
+                        buf[1] = protocol::byte(val >> 16);
+                        buf[2] = protocol::byte(val >> 8);
+                        buf[3] = protocol::byte(val);
+                        os.write(buf, 4);
+                    }
+                    else
+                        if (val >= -0x80000000ll && val <= 0x7fffffffll)
+                        {
+                            buf[0] = protocol::byte((tag & 0xf0) + 4);
+                            buf[1] = protocol::byte(val >> 24);
+                            buf[2] = protocol::byte(val >> 16);
+                            buf[3] = protocol::byte(val >> 8);
+                            buf[4] = protocol::byte(val);
+                            os.write(buf, 5);
+                        }
+                        else
+                            if (val >= -0x8000000000ll && val <= 0x7fffffffffll)
+                            {
+                                buf[0] = protocol::byte((tag & 0xf0) + 5);
+                                buf[1] = protocol::byte(val >> 32);
+                                buf[2] = protocol::byte(val >> 24);
+                                buf[3] = protocol::byte(val >> 16);
+                                buf[4] = protocol::byte(val >> 8);
+                                buf[5] = protocol::byte(val);
+                                os.write(buf, 6);
+                            }
+                            else
+                                if (val >= -0x800000000000ll && val <= 0x7fffffffffffll)
+                                {
+                                    buf[0] = protocol::byte((tag & 0xf0) + 6);
+                                    buf[1] = protocol::byte(val >> 40);
+                                    buf[2] = protocol::byte(val >> 32);
+                                    buf[3] = protocol::byte(val >> 24);
+                                    buf[4] = protocol::byte(val >> 16);
+                                    buf[5] = protocol::byte(val >> 8);
+                                    buf[6] = protocol::byte(val);
+                                    os.write(buf, 7);
+                                }
+                                else
+                                    if (val >= -0x80000000000000ll && val <= 0x7fffffffffffffll)
+                                    {
+                                        buf[0] = protocol::byte((tag & 0xf0) + 7);
+                                        buf[1] = protocol::byte(val >> 48);
+                                        buf[2] = protocol::byte(val >> 40);
+                                        buf[3] = protocol::byte(val >> 32);
+                                        buf[4] = protocol::byte(val >> 24);
+                                        buf[5] = protocol::byte(val >> 16);
+                                        buf[6] = protocol::byte(val >> 8);
+                                        buf[7] = protocol::byte(val);
+                                        os.write(buf, 8);
+                                    }
+                                    else
+                                    {
+                                        buf[0] = protocol::byte((tag & 0xf0) + 8);
+                                        buf[1] = protocol::byte(val >> 56);
+                                        buf[2] = protocol::byte(val >> 48);
+                                        buf[3] = protocol::byte(val >> 40);
+                                        buf[4] = protocol::byte(val >> 32);
+                                        buf[5] = protocol::byte(val >> 24);
+                                        buf[6] = protocol::byte(val >> 16);
+                                        buf[7] = protocol::byte(val >> 8);
+                                        buf[8] = protocol::byte(val);
+                                        os.write(buf, 9);
+                                    }
+        }
+
+        static int64_t consumeRawInt(protocol::istream& is, protocol::byte const expTag)
+        {
+            protocol::byte tag;
+
+            if (is >> tag)
+            {
+                int const len = tag & 0xf;
+
+                if ((tag & 0xf0) == (expTag & 0xf0) && len > 0 && len <= 8)
+                {
+                    int32_t val[2];
+
+                    if (is.read(reinterpret_cast<protocol::byte*>(&val), len))
+                        return ((int64_t(ntohl(val[0])) << 32) + int64_t(ntohl(val[1]))) >>
+                               ((sizeof(int64_t) - len) * 8);
+                }
+                else
+                    throw std::runtime_error("bad tag value");
+            }
+            throw std::runtime_error("unexpected end of file");
+        }
+
+        static size_t readLength(protocol::istream& is, protocol::byte const expTag)
+        {
+            int64_t const val = consumeRawInt(is, expTag);
+
+            if (val >= 0 && val <= 2147483647)
+                return size_t(val);
+            else
+                throw std::runtime_error("length field out of range");
+        }
+
+        static int16_t readFieldLabel(protocol::istream& is, protocol::byte const expTag)
+        {
+            int64_t const val = consumeRawInt(is, expTag);
+
+            if (val >= -32768 && val <= 32767)
+                return int16_t(val);
+            else
+                throw std::runtime_error("field out of range");
+        }
+
+        static void unmarshal(protocol::istream& is, int16_t& v)
+        {
+            int64_t const vv = consumeRawInt(is, 0x10);
+
+            if (vv >= -0x8000 && vv <= 0x7fff)
+                v = int16_t(vv);
+            else
+                throw std::runtime_error("int16 out of range");
+        }
+
+        static void marshal(protocol::ostream& os, int32_t const& v)
+        {
+            emitRawInt(os, 0x10, v);
+        }
+
+        static void unmarshal(protocol::istream& is, int32_t& v)
+        {
+            int64_t const vv = consumeRawInt(is, 0x10);
+
+            if (vv >= -0x80000000ll && vv <= 0x7fffffffll)
+                v = int32_t(vv);
+            else
+                throw std::runtime_error("int32 out of range");
+        }
+
+        static void marshal(protocol::ostream& os, int64_t const& v)
+        {
+            emitRawInt(os, 0x10, v);
+        }
+
+        static void unmarshal(protocol::istream& is, int64_t& v)
+        {
+            v = consumeRawInt(is, 0x10);
+        }
+
+        static void marshal(protocol::ostream& os, std::string const& v)
+        {
+            emitRawInt(os, 0x40, v.size());
+            os.write(v.data(), v.size());
+        }
+
+        static void unmarshal(protocol::istream& is, std::string& v)
+        {
+            size_t const len = readLength(is, 0x40);
+            std::string tmp;
+
+            tmp.resize(len);
+            is.read(&tmp[0], len);
+            v.swap(tmp);
+        }
+
+        template<typename T>
+        void marshal(protocol::ostream& os, std::vector<T> const& v)
+        {
+            emitRawInt(os, 0x50, v.size());
+            for (auto const& ii : v)
+                marshal(os, ii);
+        }
+
+        template <typename T>
+        void unmarshal(protocol::istream& is, std::vector<T>& v)
+        {
+            std::vector<T> vec;
+            size_t len = readLength(is, 0x50);
+
+            vec.reserve(len);
+            while (len--)
+            {
+                T tmp;
+
+                unmarshal(is, tmp);
+                vec.push_back(std::move(tmp));
+            }
+            v.swap(vec);
+        }
+
+        template <>
+        void marshal(protocol::ostream& os, std::vector<uint8_t> const& v)
+        {
+            emitRawInt(os, 0x30, v.size());
+            os.write(reinterpret_cast<protocol::byte const*>(&v[0]), v.size());
+        }
+
+        template <>
+        void unmarshal(protocol::istream& is, std::vector<uint8_t>& v)
+        {
+            size_t const len = readLength(is, 0x30);
+            std::vector<uint8_t> tmp;
+
+            tmp.resize(len);
+            is.read(reinterpret_cast<protocol::byte*>(&tmp[0]), len);
+            v.swap(tmp);
+        }
+
+        static void unmarshal(protocol::istream& is, request::connect& v)
+        {
+            uint32_t flg = 0;
+            size_t const total = readLength(is, 0x50);
+
+            for (size_t ii = 0; ii < total; ii += 2)
+            {
+                switch (readFieldLabel(is, 0x10))
+                {
+                    case 6831:
+                        unmarshal(is, v.version_client);
+                        flg |= 0x1;
+                        break;
+
+                    case -32007:
+                        unmarshal(is, v.screen_width);
+                        flg |= 0x2;
+                        break;
+
+                    case 1134:
+                        unmarshal(is, v.screen_height);
+                        flg |= 0x4;
+                        break;
+
+                    case 21189:
+                        unmarshal(is, v.win_caption);
+                        flg |= 0x8;
+                        break;
+
+                    default:
+                        throw std::runtime_error("found unknown field");
+                }
+            }
+
+            if (flg != 0xf)
+                throw std::runtime_error("missing required field(s) while unmarshalling 'request::connect' type");
+        }
+
+        static void unmarshal(protocol::istream& is, reply::Error& v)
+        {
+            uint32_t flg = 0;
+            size_t const total = readLength(is, 0x50);
+
+            for (size_t ii = 0; ii < total; ii += 2)
+            {
+                switch (readFieldLabel(is, 0x10))
+                {
+                    case 26516:
+                        unmarshal(is, v.code);
+                        flg |= 0x1;
+                        break;
+
+                    case 12546:
+                        unmarshal(is, v.message);
+                        flg |= 0x2;
+                        break;
+
+                    default:
+                        throw std::runtime_error("found unknown field");
+                }
+            }
+
+            if (flg != 0x3)
+                throw std::runtime_error("missing required field(s) while unmarshalling 'reply::Error' type");
+        }
+
+        static void unmarshal(protocol::istream& is, reply::connected& v)
+        {
+            uint32_t flg = 0;
+            size_t const total = readLength(is, 0x50);
+
+            for (size_t ii = 0; ii < total; ii += 2)
+            {
+                switch (readFieldLabel(is, 0x10))
+                {
+                    case -3889:
+                        unmarshal(is, v.server_version);
+                        flg |= 0x1;
+                        break;
+
+                    default:
+                        throw std::runtime_error("found unknown field");
+                }
+            }
+
+            if (flg != 0x1)
+                throw std::runtime_error("missing required field(s) while unmarshalling 'reply::connected' type");
+        }
+
+        static void unmarshal(protocol::istream& is, reply::frame& v)
+        {
+            uint32_t flg = 0;
+            size_t const total = readLength(is, 0x50);
+
+            for (size_t ii = 0; ii < total; ii += 2)
+            {
+                switch (readFieldLabel(is, 0x10))
+                {
+                    case -26436:
+                        unmarshal(is, v.timestamp_ns);
+                        flg |= 0x1;
+                        break;
+
+                    case 26838:
+                        unmarshal(is, v.flags);
+                        flg |= 0x2;
+                        break;
+
+                    case 32568:
+                        unmarshal(is, v.data);
+                        flg |= 0x4;
+                        break;
+
+                    default:
+                        throw std::runtime_error("found unknown field");
+                }
+            }
+
+            if (flg != 0x7)
+                throw std::runtime_error("missing required field(s) while unmarshalling 'reply::frame' type");
+        }
+
+        static void marshal(protocol::ostream& os, request::connect const& v)
+        {
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(81),
+                    static_cast<protocol::byte>(8)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(26),
+                    static_cast<protocol::byte>(-81)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.version_client);
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(-126),
+                    static_cast<protocol::byte>(-7)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.screen_width);
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(4),
+                    static_cast<protocol::byte>(110)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.screen_height);
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(82),
+                    static_cast<protocol::byte>(-59)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.win_caption);
+        }
+
+        void request::connect::marshal(protocol::ostream& os) const
+        {
+            class exMan
+            {
+                std::ios::iostate const orig;
+                protocol::ostream& os;
+            public:
+                explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
+                {
+                    os.exceptions(std::ios::failbit | std::ios::badbit);
+                    std::noskipws(os);
+                }
+                ~exMan()
+                {
+                    os.exceptions(orig);
+                }
+            } em(os);
+
+            os << "SDD\x02\x51\x03";
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(20),
+                    static_cast<protocol::byte>(-74),
+                    static_cast<protocol::byte>(5),
+                    static_cast<protocol::byte>(-22),
+                    static_cast<protocol::byte>(96)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(54),
+                    static_cast<protocol::byte>(55)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            protocol::broadcast::marshal(os, *this);
+        }
+
+        static void marshal(protocol::ostream& os, reply::Error const& v)
+        {
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(81),
+                    static_cast<protocol::byte>(4)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(103),
+                    static_cast<protocol::byte>(-108)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.code);
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(49),
+                    static_cast<protocol::byte>(2)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.message);
+        }
+
+        void reply::Error::marshal(protocol::ostream& os) const
+        {
+            class exMan
+            {
+                std::ios::iostate const orig;
+                protocol::ostream& os;
+            public:
+                explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
+                {
+                    os.exceptions(std::ios::failbit | std::ios::badbit);
+                    std::noskipws(os);
+                }
+                ~exMan()
+                {
+                    os.exceptions(orig);
+                }
+            } em(os);
+
+            os << "SDD\x02\x51\x03";
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(20),
+                    static_cast<protocol::byte>(-74),
+                    static_cast<protocol::byte>(5),
+                    static_cast<protocol::byte>(-22),
+                    static_cast<protocol::byte>(96)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(-44),
+                    static_cast<protocol::byte>(-23)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            protocol::broadcast::marshal(os, *this);
+        }
+
+        static void marshal(protocol::ostream& os, reply::connected const& v)
+        {
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(81),
+                    static_cast<protocol::byte>(2)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(-16),
+                    static_cast<protocol::byte>(-49)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.server_version);
+        }
+
+        void reply::connected::marshal(protocol::ostream& os) const
+        {
+            class exMan
+            {
+                std::ios::iostate const orig;
+                protocol::ostream& os;
+            public:
+                explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
+                {
+                    os.exceptions(std::ios::failbit | std::ios::badbit);
+                    std::noskipws(os);
+                }
+                ~exMan()
+                {
+                    os.exceptions(orig);
+                }
+            } em(os);
+
+            os << "SDD\x02\x51\x03";
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(20),
+                    static_cast<protocol::byte>(-74),
+                    static_cast<protocol::byte>(5),
+                    static_cast<protocol::byte>(-22),
+                    static_cast<protocol::byte>(96)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(-128),
+                    static_cast<protocol::byte>(-126)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            protocol::broadcast::marshal(os, *this);
+        }
+
+        static void marshal(protocol::ostream& os, reply::frame const& v)
+        {
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(81),
+                    static_cast<protocol::byte>(6)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(-104),
+                    static_cast<protocol::byte>(-68)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.timestamp_ns);
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(104),
+                    static_cast<protocol::byte>(-42)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.flags);
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(127),
+                    static_cast<protocol::byte>(56)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            marshal(os, v.data);
+        }
+
+        void reply::frame::marshal(protocol::ostream& os) const
+        {
+            class exMan
+            {
+                std::ios::iostate const orig;
+                protocol::ostream& os;
+            public:
+                explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
+                {
+                    os.exceptions(std::ios::failbit | std::ios::badbit);
+                    std::noskipws(os);
+                }
+                ~exMan()
+                {
+                    os.exceptions(orig);
+                }
+            } em(os);
+
+            os << "SDD\x02\x51\x03";
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(20),
+                    static_cast<protocol::byte>(-74),
+                    static_cast<protocol::byte>(5),
+                    static_cast<protocol::byte>(-22),
+                    static_cast<protocol::byte>(96)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            {
+                static protocol::byte const data[] =
+                {
+                    static_cast<protocol::byte>(18),
+                    static_cast<protocol::byte>(-127),
+                    static_cast<protocol::byte>(-117)
+                };
+
+                os.write(data, sizeof(data));
+            }
+            protocol::broadcast::marshal(os, *this);
+        }
+
+        void request::connect::deliverTo(Receiver& r)
+        {
+            r.handle(*this);
+        }
+
+        static request::Base::Ptr request_connect_unmarshaller(protocol::istream& is)
+        {
+            std::unique_ptr< request::connect > ptr(new request::connect);
+
+            unmarshal(is, *ptr);
+            return request::Base::Ptr(ptr.release());
+        }
+
+        void request::connect::swap(request::connect& o) noexcept(true)
+        {
+            std::swap(version_client, o.version_client);
+            std::swap(screen_width, o.screen_width);
+            std::swap(screen_height, o.screen_height);
+            win_caption.swap(o.win_caption);
+        }
+
+        void reply::Error::deliverTo(Receiver& r)
+        {
+            r.handle(*this);
+        }
+
+        static reply::Base::Ptr reply_Error_unmarshaller(protocol::istream& is)
+        {
+            std::unique_ptr< reply::Error > ptr(new reply::Error);
+
+            unmarshal(is, *ptr);
+            return reply::Base::Ptr(ptr.release());
+        }
+
+        void reply::Error::swap(reply::Error& o) noexcept(true)
+        {
+            std::swap(code, o.code);
+            message.swap(o.message);
+        }
+
+        void reply::connected::deliverTo(Receiver& r)
+        {
+            r.handle(*this);
+        }
+
+        static reply::Base::Ptr reply_connected_unmarshaller(protocol::istream& is)
+        {
+            std::unique_ptr< reply::connected > ptr(new reply::connected);
+
+            unmarshal(is, *ptr);
+            return reply::Base::Ptr(ptr.release());
+        }
+
+        void reply::connected::swap(reply::connected& o) noexcept(true)
+        {
+            std::swap(server_version, o.server_version);
+        }
+
+        void reply::frame::deliverTo(Receiver& r)
+        {
+            r.handle(*this);
+        }
+
+        static reply::Base::Ptr reply_frame_unmarshaller(protocol::istream& is)
+        {
+            std::unique_ptr< reply::frame > ptr(new reply::frame);
+
+            unmarshal(is, *ptr);
+            return reply::Base::Ptr(ptr.release());
+        }
+
+        void reply::frame::swap(reply::frame& o) noexcept(true)
+        {
+            std::swap(timestamp_ns, o.timestamp_ns);
+            std::swap(flags, o.flags);
+            data.swap(o.data);
+        }
+
+        request::Base::Ptr request::Base::unmarshal(protocol::istream& is)
+        {
+            class exMan
+            {
+                std::ios::iostate const orig;
+                protocol::istream& is;
+            public:
+                explicit exMan(protocol::istream& s) : orig(s.exceptions()), is(s)
+                {
+                    is.exceptions(std::ios::failbit | std::ios::badbit);
+                    std::noskipws(is);
+                }
+                ~exMan()
+                {
+                    is.exceptions(orig);
+                }
+            } em(is);
+            protocol::byte buf[4];
+
+            if (!is.read(buf, sizeof(buf)))
+                throw std::runtime_error("couldn't read header");
+            if (buf[0] != 'S' || buf[1] != 'D' || buf[2] != 'D' || buf[3] != 2)
+                throw std::runtime_error("packet has invalid header");
+            ssize_t const total = readLength(is, 0x50);
+            if (total != 3)
+                throw std::runtime_error("'broadcast' protocol packet has invalid length");
+
+            int32_t proto;
+
+            protocol::broadcast::unmarshal(is, proto);
+            if (proto != (int32_t) 0xb605ea60)
+                throw std::runtime_error("unknown protocol");
+
+            int16_t message;
+
+            protocol::broadcast::unmarshal(is, message);
+            switch (message)
+            {
+                case 13879:
+                    return request_connect_unmarshaller(is);
+
+                default:
+                    throw std::runtime_error("invalid request for 'broadcast' protocol");
+            }
+        }
+
+        reply::Base::Ptr reply::Base::unmarshal(protocol::istream& is)
+        {
+            class exMan
+            {
+                std::ios::iostate const orig;
+                protocol::istream& is;
+            public:
+                explicit exMan(protocol::istream& s) : orig(s.exceptions()), is(s)
+                {
+                    is.exceptions(std::ios::failbit | std::ios::badbit);
+                    std::noskipws(is);
+                }
+                ~exMan()
+                {
+                    is.exceptions(orig);
+                }
+            } em(is);
+            protocol::byte buf[4];
+
+            if (!is.read(buf, sizeof(buf)))
+                throw std::runtime_error("couldn't read header");
+            if (buf[0] != 'S' || buf[1] != 'D' || buf[2] != 'D' || buf[3] != 2)
+                throw std::runtime_error("packet has invalid header");
+            ssize_t const total = readLength(is, 0x50);
+            if (total != 3)
+                throw std::runtime_error("'broadcast' protocol packet has invalid length");
+
+            int32_t proto;
+
+            protocol::broadcast::unmarshal(is, proto);
+            if (proto != (int32_t) 0xb605ea60)
+                throw std::runtime_error("unknown protocol");
+
+            int16_t message;
+
+            protocol::broadcast::unmarshal(is, message);
+            switch (message)
+            {
+                case -11031:
+                    return reply_Error_unmarshaller(is);
+
+                case -32638:
+                    return reply_connected_unmarshaller(is);
+
+                case -32373:
+                    return reply_frame_unmarshaller(is);
+
+                default:
+                    throw std::runtime_error("invalid reply for 'broadcast' protocol");
+            }
+        }
+
     }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(26),
-	    static_cast<protocol::byte>(-81)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.version_client);
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-126),
-	    static_cast<protocol::byte>(-7)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.screen_width);
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(4),
-	    static_cast<protocol::byte>(110)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.screen_height);
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(82),
-	    static_cast<protocol::byte>(-59)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.win_caption);
-}
-
-void request::connect::marshal(protocol::ostream& os) const
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::ostream& os;
-     public:
-      explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
-      {
-        os.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(os);
-      }
-	   ~exMan() { os.exceptions(orig); }
-    } em(os);
-
-    os << "SDD\x02\x51\x03";
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(20),
-	    static_cast<protocol::byte>(-74),
-	    static_cast<protocol::byte>(5),
-	    static_cast<protocol::byte>(-22),
-	    static_cast<protocol::byte>(96)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(54),
-	    static_cast<protocol::byte>(55)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    protocol::broadcast::marshal(os, *this);
-}
-
-static void marshal(protocol::ostream& os, reply::Error const& v)
-{
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(4)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(103),
-	    static_cast<protocol::byte>(-108)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.code);
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(49),
-	    static_cast<protocol::byte>(2)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.message);
-}
-
-void reply::Error::marshal(protocol::ostream& os) const
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::ostream& os;
-     public:
-      explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
-      {
-        os.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(os);
-      }
-	   ~exMan() { os.exceptions(orig); }
-    } em(os);
-
-    os << "SDD\x02\x51\x03";
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(20),
-	    static_cast<protocol::byte>(-74),
-	    static_cast<protocol::byte>(5),
-	    static_cast<protocol::byte>(-22),
-	    static_cast<protocol::byte>(96)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-44),
-	    static_cast<protocol::byte>(-23)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    protocol::broadcast::marshal(os, *this);
-}
-
-static void marshal(protocol::ostream& os, reply::connected const& v)
-{
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(2)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-16),
-	    static_cast<protocol::byte>(-49)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.server_version);
-}
-
-void reply::connected::marshal(protocol::ostream& os) const
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::ostream& os;
-     public:
-      explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
-      {
-        os.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(os);
-      }
-	   ~exMan() { os.exceptions(orig); }
-    } em(os);
-
-    os << "SDD\x02\x51\x03";
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(20),
-	    static_cast<protocol::byte>(-74),
-	    static_cast<protocol::byte>(5),
-	    static_cast<protocol::byte>(-22),
-	    static_cast<protocol::byte>(96)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-128),
-	    static_cast<protocol::byte>(-126)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    protocol::broadcast::marshal(os, *this);
-}
-
-static void marshal(protocol::ostream& os, reply::frame const& v)
-{
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(6)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-104),
-	    static_cast<protocol::byte>(-68)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.timestamp_ns);
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(104),
-	    static_cast<protocol::byte>(-42)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.flags);
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(127),
-	    static_cast<protocol::byte>(56)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.data);
-}
-
-void reply::frame::marshal(protocol::ostream& os) const
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::ostream& os;
-     public:
-      explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
-      {
-        os.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(os);
-      }
-	   ~exMan() { os.exceptions(orig); }
-    } em(os);
-
-    os << "SDD\x02\x51\x03";
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(20),
-	    static_cast<protocol::byte>(-74),
-	    static_cast<protocol::byte>(5),
-	    static_cast<protocol::byte>(-22),
-	    static_cast<protocol::byte>(96)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-127),
-	    static_cast<protocol::byte>(-117)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    protocol::broadcast::marshal(os, *this);
-}
-
-void request::connect::deliverTo(Receiver& r)
-{
-    r.handle(*this);
-}
-
-static request::Base::Ptr request_connect_unmarshaller(protocol::istream& is)
-{
-    std::unique_ptr< request::connect > ptr(new request::connect);
-
-    unmarshal(is, *ptr);
-    return request::Base::Ptr(ptr.release());
-}
-
-void request::connect::swap(request::connect& o) noexcept(true)
-{
-    std::swap(version_client, o.version_client);
-    std::swap(screen_width, o.screen_width);
-    std::swap(screen_height, o.screen_height);
-    win_caption.swap(o.win_caption);
-}
-
-void reply::Error::deliverTo(Receiver& r)
-{
-    r.handle(*this);
-}
-
-static reply::Base::Ptr reply_Error_unmarshaller(protocol::istream& is)
-{
-    std::unique_ptr< reply::Error > ptr(new reply::Error);
-
-    unmarshal(is, *ptr);
-    return reply::Base::Ptr(ptr.release());
-}
-
-void reply::Error::swap(reply::Error& o) noexcept(true)
-{
-    std::swap(code, o.code);
-    message.swap(o.message);
-}
-
-void reply::connected::deliverTo(Receiver& r)
-{
-    r.handle(*this);
-}
-
-static reply::Base::Ptr reply_connected_unmarshaller(protocol::istream& is)
-{
-    std::unique_ptr< reply::connected > ptr(new reply::connected);
-
-    unmarshal(is, *ptr);
-    return reply::Base::Ptr(ptr.release());
-}
-
-void reply::connected::swap(reply::connected& o) noexcept(true)
-{
-    std::swap(server_version, o.server_version);
-}
-
-void reply::frame::deliverTo(Receiver& r)
-{
-    r.handle(*this);
-}
-
-static reply::Base::Ptr reply_frame_unmarshaller(protocol::istream& is)
-{
-    std::unique_ptr< reply::frame > ptr(new reply::frame);
-
-    unmarshal(is, *ptr);
-    return reply::Base::Ptr(ptr.release());
-}
-
-void reply::frame::swap(reply::frame& o) noexcept(true)
-{
-    std::swap(timestamp_ns, o.timestamp_ns);
-    std::swap(flags, o.flags);
-    data.swap(o.data);
-}
-
-request::Base::Ptr request::Base::unmarshal(protocol::istream& is)
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::istream& is;
-     public:
-      explicit exMan(protocol::istream& s) : orig(s.exceptions()), is(s)
-      {
-        is.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(is);
-      }
-	   ~exMan() { is.exceptions(orig); }
-    } em(is);
-    protocol::byte buf[4];
-
-    if (!is.read(buf, sizeof(buf)))
-	throw std::runtime_error("couldn't read header");
-    if (buf[0] != 'S' || buf[1] != 'D' || buf[2] != 'D' || buf[3] != 2)
-	throw std::runtime_error("packet has invalid header");
-    ssize_t const total = readLength(is, 0x50);
-    if (total != 3)
-	throw std::runtime_error("'broadcast' protocol packet has invalid length");
-
-    int32_t proto;
-
-    protocol::broadcast::unmarshal(is, proto);
-    if (proto != (int32_t) 0xb605ea60)
-	throw std::runtime_error("unknown protocol");
-
-    int16_t message;
-
-    protocol::broadcast::unmarshal(is, message);
-    switch (message) {
-     case 13879:
-	return request_connect_unmarshaller(is);
-
-     default:
-	throw std::runtime_error("invalid request for 'broadcast' protocol");
-    }
-}
-
-reply::Base::Ptr reply::Base::unmarshal(protocol::istream& is)
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::istream& is;
-     public:
-      explicit exMan(protocol::istream& s) : orig(s.exceptions()), is(s)
-      {
-        is.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(is);
-      }
-	   ~exMan() { is.exceptions(orig); }
-    } em(is);
-    protocol::byte buf[4];
-
-    if (!is.read(buf, sizeof(buf)))
-	throw std::runtime_error("couldn't read header");
-    if (buf[0] != 'S' || buf[1] != 'D' || buf[2] != 'D' || buf[3] != 2)
-	throw std::runtime_error("packet has invalid header");
-    ssize_t const total = readLength(is, 0x50);
-    if (total != 3)
-	throw std::runtime_error("'broadcast' protocol packet has invalid length");
-
-    int32_t proto;
-
-    protocol::broadcast::unmarshal(is, proto);
-    if (proto != (int32_t) 0xb605ea60)
-	throw std::runtime_error("unknown protocol");
-
-    int16_t message;
-
-    protocol::broadcast::unmarshal(is, message);
-    switch (message) {
-     case -11031:
-	return reply_Error_unmarshaller(is);
-
-     case -32638:
-	return reply_connected_unmarshaller(is);
-
-     case -32373:
-	return reply_frame_unmarshaller(is);
-
-     default:
-	throw std::runtime_error("invalid reply for 'broadcast' protocol");
-    }
-}
-
-}
 }

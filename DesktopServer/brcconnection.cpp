@@ -56,10 +56,22 @@ public:
         {
             LOCK_GUARD_ON(socket_write_lock);
             rply.marshal(os);
+            had_write = true;
         }
+
+        std::cout << "Client: " << msg.version_client << ", (" << msg.screen_width << " x " << msg.screen_height << ")" << std::endl;
+
         startGrab();
     }
+
+    bool hadWriteCallLocked()
+    {
+        bool r = had_write;
+        had_write = false;
+        return r;
+    }
 private:
+    bool had_write{false};
     std::chrono::steady_clock::time_point started_at{now()};
 
     static std::chrono::steady_clock::time_point now()
@@ -114,6 +126,7 @@ private:
 
             LOCK_GUARD_ON(socket_write_lock);
             frame_new->marshal(os);
+            had_write = true;
 
         })->start_capturing();
     }
@@ -155,14 +168,15 @@ void BrcConnection::start()
 
                 while (!should_break_loop())
                 {
-                    if (network::readableBytes(socket) && network::readFromSocket(socket, in_buffer))
+                    const auto readable = network::readableBytes(socket); //debuger friendly
+                    if (readable > 3 && network::readFromSocket(socket, in_buffer))
                     {
                         //class FromClientFsm handles current message in stream and puts output to os
                         request::Base::unmarshal(is)->deliverTo(fsm);
                     }
 
                     lock_guard_conditional grd(socket_write_lock, should_break_loop);
-                    if (grd.isLocked())
+                    if (grd.isLocked() && fsm.hadWriteCallLocked())
                         network::writeToSocket(out_buffer, socket);
                 }
             }

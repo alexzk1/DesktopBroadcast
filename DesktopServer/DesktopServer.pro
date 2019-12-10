@@ -44,10 +44,11 @@ FORMS += \
 LIBS += -lpthread
 
 QMAKE_CXXFLAGS +=  -pipe -std=c++17 -Wall -frtti -fexceptions -Werror=return-type -Werror=overloaded-virtual
-QMAKE_CXXFLAGS +=  -Wctor-dtor-privacy -Werror=delete-non-virtual-dtor -fstrict-aliasing
+QMAKE_CXXFLAGS +=  -Wctor-dtor-privacy -Werror=delete-non-virtual-dtor -fno-strict-aliasing
 QMAKE_CXXFLAGS +=  -Werror=strict-aliasing -Wstrict-aliasing=2
 INCLUDEPATH += $$PWD/../utils
 
+unix:!macosx: DEFINES += OS_LINUX
 
 include($$PWD/../NetProto/bproto.pri)
 

@@ -203,8 +203,7 @@ namespace SL
             ret.Index = index;
 
             ret.Id = id;
-            assert(n.size() + 1 < sizeof(ret.Name));
-            memcpy(ret.Name, n.c_str(), n.size() + 1);
+            ret.Name = n;
             ret.OriginalOffsetX = ret.OffsetX = ox;
             ret.OriginalOffsetY = ret.OffsetY = oy;
             ret.OriginalWidth = ret.Width = w;
@@ -272,14 +271,7 @@ namespace SL
         {
             mointor.Position.y = y;
         }
-        const char *Name(const Monitor &mointor)
-        {
-            return mointor.Name;
-        }
-        const char *Name(const Window &mointor)
-        {
-            return mointor.Name;
-        }
+
         int Height(const Monitor &mointor)
         {
             return mointor.Height;
