@@ -10,177 +10,155 @@
 #include <string>
 #include <memory>
 
-namespace protocol
-{
+namespace protocol {
     typedef std::ostream::char_type byte;
     typedef std::basic_ostream<protocol::byte> ostream;
     typedef std::basic_istream<protocol::byte> istream;
 
-    namespace broadcast
-    {
+    namespace broadcast {
 
-        // Data types used in messages, but which aren't messages themselves.
+	// Data types used in messages, but which aren't messages themselves.
 
-        namespace request
-        {
+	namespace request {
 
-            // Forward declaration of messages.
+	    // Forward declaration of messages.
 
-            struct connect;
+	    struct connect;
 
-            class Receiver
-            {
-            public:
-                virtual ~Receiver();
-                virtual void handle(connect&) = 0;
-            };
+	    class Receiver {
+	     public:
+	        virtual ~Receiver();
+		virtual void handle(connect&) = 0;
+	    };
 
-            // Start of the message object hierarchy.
+	    // Start of the message object hierarchy.
 
-            struct Base
-            {
-                typedef std::unique_ptr< Base > Ptr;
+	    struct Base {
+		typedef std::unique_ptr< Base > Ptr;
 
-                virtual ~Base();
-            public:
-                virtual void deliverTo(Receiver&) = 0;
-                virtual void marshal(protocol::ostream&) const = 0;
-                virtual bool needsReply() const = 0;
-                static Ptr unmarshal(protocol::istream&);
-            };
+		virtual ~Base();
+	     public:
+		virtual void deliverTo(Receiver&) = 0;
+		virtual void marshal(protocol::ostream&) const = 0;
+		virtual bool needsReply() const = 0;
+		static Ptr unmarshal(protocol::istream&);
+	    };
 
-            struct connect : public Base
-            {
-                int32_t version_client;
-                int32_t screen_width;
-                int32_t screen_height;
+	    struct connect : public Base {
+		int32_t version_client;
+		int32_t screen_width;
+		int32_t screen_height;
+		std::string win_caption;
 
-                void swap(connect&) noexcept(true);
-                virtual void deliverTo(Receiver&);
-            public:
-                connect() :
-                    version_client(0), screen_width(0), screen_height(0)
-                {}
-                virtual void marshal(protocol::ostream&) const;
-                virtual bool needsReply() const
-                {
-                    return true;
-                }
+		void swap(connect&) noexcept(true);
+		virtual void deliverTo(Receiver&);
+	     public:
+		connect() :
+		    version_client(0), screen_width(0), screen_height(0)
+		    {}
+		virtual void marshal(protocol::ostream&) const;
+		virtual bool needsReply() const { return true; };
 
-                inline int operator==(connect const& o) const noexcept(true)
-                {
-                    return (version_client == o.version_client) &&
-                           (screen_width == o.screen_width) &&
-                           (screen_height == o.screen_height);
-                }
-            };
+		inline int operator==(connect const& o) const noexcept(true)
+		{
+		    return (version_client == o.version_client) &&
+			(screen_width == o.screen_width) &&
+			(screen_height == o.screen_height) &&
+			(win_caption == o.win_caption);
+		}
+	    };
 
-        }
-        namespace reply
-        {
+	}
+	namespace reply {
 
-            // Forward declaration of messages.
+	    // Forward declaration of messages.
 
-            struct Error;
-            struct connected;
-            struct frame;
+	    struct Error;
+	    struct connected;
+	    struct frame;
 
-            class Receiver
-            {
-            public:
-                virtual ~Receiver();
-                virtual void handle(Error&) = 0;
-                virtual void handle(connected&) = 0;
-                virtual void handle(frame&) = 0;
-            };
+	    class Receiver {
+	     public:
+	        virtual ~Receiver();
+		virtual void handle(Error&) = 0;
+		virtual void handle(connected&) = 0;
+		virtual void handle(frame&) = 0;
+	    };
 
-            // Start of the message object hierarchy.
+	    // Start of the message object hierarchy.
 
-            struct Base
-            {
-                typedef std::unique_ptr< Base > Ptr;
+	    struct Base {
+		typedef std::unique_ptr< Base > Ptr;
 
-                virtual ~Base();
-            public:
-                virtual void deliverTo(Receiver&) = 0;
-                virtual void marshal(protocol::ostream&) const = 0;
-                virtual bool needsReply() const = 0;
-                static Ptr unmarshal(protocol::istream&);
-            };
+		virtual ~Base();
+	     public:
+		virtual void deliverTo(Receiver&) = 0;
+		virtual void marshal(protocol::ostream&) const = 0;
+		virtual bool needsReply() const = 0;
+		static Ptr unmarshal(protocol::istream&);
+	    };
 
-            struct Error : public Base
-            {
-                int32_t code;
-                std::string message;
+	    struct Error : public Base {
+		int32_t code;
+		std::string message;
 
-                void swap(Error&) noexcept(true);
-                virtual void deliverTo(Receiver&);
-            public:
-                Error() :
-                    code(0)
-                {}
-                virtual void marshal(protocol::ostream&) const;
-                virtual bool needsReply() const
-                {
-                    return false;
-                };
+		void swap(Error&) noexcept(true);
+		virtual void deliverTo(Receiver&);
+	     public:
+		Error() :
+		    code(0)
+		    {}
+		virtual void marshal(protocol::ostream&) const;
+		virtual bool needsReply() const { return false; };
 
-                inline int operator==(Error const& o) const noexcept(true)
-                {
-                    return (code == o.code) &&
-                           (message == o.message);
-                }
-            };
+		inline int operator==(Error const& o) const noexcept(true)
+		{
+		    return (code == o.code) &&
+			(message == o.message);
+		}
+	    };
 
-            struct connected : public Base
-            {
-                int32_t server_version;
+	    struct connected : public Base {
+		int32_t server_version;
 
-                void swap(connected&) noexcept(true);
-                virtual void deliverTo(Receiver&);
-            public:
-                connected() :
-                    server_version(0)
-                {}
-                virtual void marshal(protocol::ostream&) const;
-                virtual bool needsReply() const
-                {
-                    return false;
-                };
+		void swap(connected&) noexcept(true);
+		virtual void deliverTo(Receiver&);
+	     public:
+		connected() :
+		    server_version(0)
+		    {}
+		virtual void marshal(protocol::ostream&) const;
+		virtual bool needsReply() const { return false; };
 
-                inline int operator==(connected const& o) const noexcept(true)
-                {
-                    return (server_version == o.server_version);
-                }
-            };
+		inline int operator==(connected const& o) const noexcept(true)
+		{
+		    return (server_version == o.server_version);
+		}
+	    };
 
-            struct frame : public Base
-            {
-                int64_t sequental_number;
-                bool is_full;
-                std::vector<uint8_t> data;
+	    struct frame : public Base {
+		int64_t timestamp_ns;
+		int32_t flags;
+		std::vector<uint8_t> data;
 
-                void swap(frame&) noexcept(true);
-                virtual void deliverTo(Receiver&);
-            public:
-                frame() :
-                    sequental_number(0), is_full(false)
-                {}
-                virtual void marshal(protocol::ostream&) const;
-                virtual bool needsReply() const
-                {
-                    return false;
-                };
+		void swap(frame&) noexcept(true);
+		virtual void deliverTo(Receiver&);
+	     public:
+		frame() :
+		    timestamp_ns(0), flags(0)
+		    {}
+		virtual void marshal(protocol::ostream&) const;
+		virtual bool needsReply() const { return false; };
 
-                inline int operator==(frame const& o) const noexcept(true)
-                {
-                    return (sequental_number == o.sequental_number) &&
-                           (is_full == o.is_full) &&
-                           (data == o.data);
-                }
-            };
+		inline int operator==(frame const& o) const noexcept(true)
+		{
+		    return (timestamp_ns == o.timestamp_ns) &&
+			(flags == o.flags) &&
+			(data == o.data);
+		}
+	    };
 
-        }
+	}
     }
 }
 

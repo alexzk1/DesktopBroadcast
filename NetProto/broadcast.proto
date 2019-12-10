@@ -4,6 +4,8 @@
 //once you do any changes here - regenerate C++/Java sources by running make_c_java.sh
 
 //send by client or server in case of need to show error
+
+
 reply Error {
    int32 code;
    string message;
@@ -15,6 +17,7 @@ request connect {
   int32 version_client;
   int32 screen_width; //full width of target device
   int32 screen_height; //full height of target device  
+  string win_caption; //what windows caption to grab
 }
 
 //reply by server
@@ -24,9 +27,14 @@ reply connected {
 
 connect -> single connected | multiple Error;
 
+
+//bit flags for frame.flags (not supported by proto compiler)
+//IMAGE_DELTA = 1, //current packet is delta image to prev
+//IMAGE_LZ4   = 2, //current data packet is LZ4 compressed
+
 //sent by server to client - image
 reply frame {
-   int64  sequental_number; //always increases
-   bool   is_full; // true if it is full image, false if it is some sort of delta
+   int64  timestamp_ns; //current time stamp difference measured in nano seconds since start of capture (i.e. 1st frame will be close to zero)
+   int32  flags;
    binary data;
 }

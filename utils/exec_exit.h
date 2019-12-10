@@ -1,6 +1,5 @@
 #pragma once
 #include <functional>
-#include "shared/no_copy.h"
 #include <exception>
 //simple trickster class - allows to exec function when block ends (i.e. exit from function)
 

@@ -140,25 +140,6 @@ static int16_t readFieldLabel(protocol::istream& is, protocol::byte const expTag
 	throw std::runtime_error("field out of range");
 }
 
-static void marshal(protocol::ostream& os, bool const& v)
-{
-    os.put(v ? 0x71 : 0x70);
-}
-
-static void unmarshal(protocol::istream& is, bool& v)
-{
-    protocol::byte tmp;
-
-    if (is >> tmp) {
-	switch (tmp) {
-	 case 0x70: v = false; break;
-	 case 0x71: v = true; break;
-	 default: throw std::runtime_error("Bad bool tag");
-	}
-    } else
-	throw std::runtime_error("Unexpected end of file");
-}
-
 static void unmarshal(protocol::istream& is, int16_t& v)
 {
     int64_t const vv = consumeRawInt(is, 0x10);
@@ -274,12 +255,17 @@ static void unmarshal(protocol::istream& is, request::connect& v)
 	    flg |= 0x4;
 	    break;
 
+	 case 21189:
+	    unmarshal(is, v.win_caption);
+	    flg |= 0x8;
+	    break;
+
 	 default:
 	    throw std::runtime_error("found unknown field");
 	}
     }
 
-    if (flg != 0x7)
+    if (flg != 0xf)
 	throw std::runtime_error("missing required field(s) while unmarshalling 'request::connect' type");
 }
 
@@ -337,13 +323,13 @@ static void unmarshal(protocol::istream& is, reply::frame& v)
 
     for (size_t ii = 0; ii < total; ii += 2) {
 	switch (readFieldLabel(is, 0x10)) {
-	 case -22958:
-	    unmarshal(is, v.sequental_number);
+	 case -26436:
+	    unmarshal(is, v.timestamp_ns);
 	    flg |= 0x1;
 	    break;
 
-	 case 16870:
-	    unmarshal(is, v.is_full);
+	 case 26838:
+	    unmarshal(is, v.flags);
 	    flg |= 0x2;
 	    break;
 
@@ -366,7 +352,7 @@ static void marshal(protocol::ostream& os, request::connect const& v)
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(6)
+	    static_cast<protocol::byte>(8)
 	};
 
 	os.write(data, sizeof(data));
@@ -401,6 +387,16 @@ static void marshal(protocol::ostream& os, request::connect const& v)
 	os.write(data, sizeof(data));
     }
     marshal(os, v.screen_height);
+    {
+	static protocol::byte const data[] = {
+	    static_cast<protocol::byte>(18),
+	    static_cast<protocol::byte>(82),
+	    static_cast<protocol::byte>(-59)
+	};
+
+	os.write(data, sizeof(data));
+    }
+    marshal(os, v.win_caption);
 }
 
 void request::connect::marshal(protocol::ostream& os) const
@@ -584,23 +580,23 @@ static void marshal(protocol::ostream& os, reply::frame const& v)
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-90),
-	    static_cast<protocol::byte>(82)
+	    static_cast<protocol::byte>(-104),
+	    static_cast<protocol::byte>(-68)
 	};
 
 	os.write(data, sizeof(data));
     }
-    marshal(os, v.sequental_number);
+    marshal(os, v.timestamp_ns);
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(65),
-	    static_cast<protocol::byte>(-26)
+	    static_cast<protocol::byte>(104),
+	    static_cast<protocol::byte>(-42)
 	};
 
 	os.write(data, sizeof(data));
     }
-    marshal(os, v.is_full);
+    marshal(os, v.flags);
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(18),
@@ -669,6 +665,7 @@ void request::connect::swap(request::connect& o) noexcept(true)
     std::swap(version_client, o.version_client);
     std::swap(screen_width, o.screen_width);
     std::swap(screen_height, o.screen_height);
+    win_caption.swap(o.win_caption);
 }
 
 void reply::Error::deliverTo(Receiver& r)
@@ -723,8 +720,8 @@ static reply::Base::Ptr reply_frame_unmarshaller(protocol::istream& is)
 
 void reply::frame::swap(reply::frame& o) noexcept(true)
 {
-    std::swap(sequental_number, o.sequental_number);
-    std::swap(is_full, o.is_full);
+    std::swap(timestamp_ns, o.timestamp_ns);
+    std::swap(flags, o.flags);
     data.swap(o.data);
 }
 
