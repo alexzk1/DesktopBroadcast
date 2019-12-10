@@ -1,4 +1,4 @@
-INCLUDES += $$PWD
+INCLUDEPATH += $$PWD
 
 HEADERS += \
     $$PWD/broadcast.h

@@ -13,6 +13,8 @@ reply Error {
 //sent once client connects to server
 request connect {
   int32 version_client;
+  int32 screen_width; //full width of target device
+  int32 screen_height; //full height of target device  
 }
 
 //reply by server
@@ -23,10 +25,8 @@ reply connected {
 connect -> single connected | multiple Error;
 
 //sent by server to client - image
-request frame {
+reply frame {
+   int64  sequental_number; //always increases
+   bool   is_full; // true if it is full image, false if it is some sort of delta
    binary data;
 }
-
-reply frame_ack {
-}
-frame-> single frame_ack | multiple Error;

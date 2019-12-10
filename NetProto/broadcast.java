@@ -473,9 +473,6 @@ public abstract class broadcast implements java.io.Serializable {
              case 13879:
                 return unmarshal_connect(in);
 
-             case 20401:
-                return unmarshal_frame(in);
-
              default:
                 throw new java.io.IOException("invalid message for 'broadcast' protocol");
             }
@@ -484,23 +481,22 @@ public abstract class broadcast implements java.io.Serializable {
         static void marshal(java.io.DataOutputStream out, connect v) throws java.io.IOException
         {
             out.writeByte(81);
-            out.writeByte(2);
+            out.writeByte(6);
 
             out.writeByte(18);
             out.writeByte(26);
             out.writeByte(-81);
             marshal(out, v.version_client);
-        }
-
-        static void marshal(java.io.DataOutputStream out, frame v) throws java.io.IOException
-        {
-            out.writeByte(81);
-            out.writeByte(2);
 
             out.writeByte(18);
-            out.writeByte(127);
-            out.writeByte(56);
-            marshal(out, v.data);
+            out.writeByte(-126);
+            out.writeByte(-7);
+            marshal(out, v.screen_width);
+
+            out.writeByte(18);
+            out.writeByte(4);
+            out.writeByte(110);
+            marshal(out, v.screen_height);
         }
 
         static connect unmarshal_connect(java.io.DataInputStream in) throws java.io.IOException
@@ -510,7 +506,7 @@ public abstract class broadcast implements java.io.Serializable {
             if (flds < 0)
                 throw new java.io.IOException("invalid array size");
 
-            java.util.BitSet flg = new java.util.BitSet(1);
+            java.util.BitSet flg = new java.util.BitSet(3);
             connect d = new connect();
 
             for (int ii = 0; ii < flds; ii += 2) {
@@ -522,33 +518,17 @@ public abstract class broadcast implements java.io.Serializable {
                 }
                 break;
 
-                 default:
-                    throw new java.io.IOException("unknown field in message");
-                }
-            }
-
-            if (flg.cardinality() != 1)
-                throw new java.io.IOException("missing required field(s)");
-
-            return d;
-        }
-
-        static frame unmarshal_frame(java.io.DataInputStream in) throws java.io.IOException
-        {
-            final int flds = readLength(in, 0x50);
-
-            if (flds < 0)
-                throw new java.io.IOException("invalid array size");
-
-            java.util.BitSet flg = new java.util.BitSet(1);
-            frame d = new frame();
-
-            for (int ii = 0; ii < flds; ii += 2) {
-                switch (unmarshal_int16(in)) {
-             case 32568: //binary data
+             case -32007: //int32 screen_width
                 {
-                    flg.set(0);
-                    d.data = unmarshal_binary(in);
+                    flg.set(1);
+                    d.screen_width = unmarshal_int32(in);
+                }
+                break;
+
+             case 1134: //int32 screen_height
+                {
+                    flg.set(2);
+                    d.screen_height = unmarshal_int32(in);
                 }
                 break;
 
@@ -557,7 +537,7 @@ public abstract class broadcast implements java.io.Serializable {
                 }
             }
 
-            if (flg.cardinality() != 1)
+            if (flg.cardinality() != 3)
                 throw new java.io.IOException("missing required field(s)");
 
             return d;
@@ -585,9 +565,6 @@ public abstract class broadcast implements java.io.Serializable {
              case 13879:
                 return unmarshal_connect(in);
 
-             case 20401:
-                return unmarshal_frame(in);
-
              default:
                 throw new java.io.IOException("invalid message for 'broadcast' protocol");
             }
@@ -596,23 +573,22 @@ public abstract class broadcast implements java.io.Serializable {
         static void marshal(java.nio.ByteBuffer out, connect v) throws java.io.IOException
         {
             out.put((byte)81);
-            out.put((byte)2);
+            out.put((byte)6);
 
             out.put((byte)18);
             out.put((byte)26);
             out.put((byte)-81);
             marshal(out, v.version_client);
-        }
-
-        static void marshal(java.nio.ByteBuffer out, frame v) throws java.io.IOException
-        {
-            out.put((byte)81);
-            out.put((byte)2);
 
             out.put((byte)18);
-            out.put((byte)127);
-            out.put((byte)56);
-            marshal(out, v.data);
+            out.put((byte)-126);
+            out.put((byte)-7);
+            marshal(out, v.screen_width);
+
+            out.put((byte)18);
+            out.put((byte)4);
+            out.put((byte)110);
+            marshal(out, v.screen_height);
         }
 
         static connect unmarshal_connect(java.nio.ByteBuffer in) throws java.io.IOException
@@ -622,7 +598,7 @@ public abstract class broadcast implements java.io.Serializable {
             if (flds < 0)
                 throw new java.io.IOException("invalid array size");
 
-            java.util.BitSet flg = new java.util.BitSet(1);
+            java.util.BitSet flg = new java.util.BitSet(3);
             connect d = new connect();
 
             for (int ii = 0; ii < flds; ii += 2) {
@@ -634,33 +610,17 @@ public abstract class broadcast implements java.io.Serializable {
                 }
                 break;
 
-                 default:
-                    throw new java.io.IOException("unknown field in message");
-                }
-            }
-
-            if (flg.cardinality() != 1)
-                throw new java.io.IOException("missing required field(s)");
-
-            return d;
-        }
-
-        static frame unmarshal_frame(java.nio.ByteBuffer in) throws java.io.IOException
-        {
-            final int flds = readLength(in, 0x50);
-
-            if (flds < 0)
-                throw new java.io.IOException("invalid array size");
-
-            java.util.BitSet flg = new java.util.BitSet(1);
-            frame d = new frame();
-
-            for (int ii = 0; ii < flds; ii += 2) {
-                switch (unmarshal_int16(in)) {
-             case 32568: //binary data
+             case -32007: //int32 screen_width
                 {
-                    flg.set(0);
-                    d.data = unmarshal_binary(in);
+                    flg.set(1);
+                    d.screen_width = unmarshal_int32(in);
+                }
+                break;
+
+             case 1134: //int32 screen_height
+                {
+                    flg.set(2);
+                    d.screen_height = unmarshal_int32(in);
                 }
                 break;
 
@@ -669,7 +629,7 @@ public abstract class broadcast implements java.io.Serializable {
                 }
             }
 
-            if (flg.cardinality() != 1)
+            if (flg.cardinality() != 3)
                 throw new java.io.IOException("missing required field(s)");
 
             return d;
@@ -679,18 +639,21 @@ public abstract class broadcast implements java.io.Serializable {
 
         public interface Receiver {
             void handle(connect m);
-            void handle(frame m);
         }
 
         public abstract void deliverTo(Receiver r);
 
         public static class connect extends Request {
-            static final long serialVersionUID = -974550552L;
+            static final long serialVersionUID = 833479878L;
             public int version_client;
+            public int screen_width;
+            public int screen_height;
 
             public connect()
             {
                 version_client = 0;
+                screen_width = 0;
+                screen_height = 0;
             }
 
             public void deliverTo(Receiver r)
@@ -751,7 +714,9 @@ public abstract class broadcast implements java.io.Serializable {
                 if (_o instanceof connect) {
                     connect o = (connect) _o;
 
-                    return version_client == o.version_client;
+                    return version_client == o.version_client && 
+                        screen_width == o.screen_width && 
+                        screen_height == o.screen_height;
                 }
 
                 return false;
@@ -759,7 +724,9 @@ public abstract class broadcast implements java.io.Serializable {
 
             public int hashCode()
             {
-                return version_client;
+                return version_client + 
+                        screen_width + 
+                        screen_height;
             }
 
             public java.lang.String toString()
@@ -770,100 +737,13 @@ public abstract class broadcast implements java.io.Serializable {
                 buf.append(version_client);
                 buf.append(";\n");
 
-                buf.append("}\n");
-                return buf.toString();
-            }
-        }
+                buf.append("    int32 screen_width = ");
+                buf.append(screen_width);
+                buf.append(";\n");
 
-        public static class frame extends Request {
-            static final long serialVersionUID = 156882989L;
-            public byte[] data;
-
-            public frame()
-            {
-                data = new byte[0];
-            }
-
-            public void deliverTo(Receiver r)
-            {
-                r.handle(this);
-            }
-
-            void marshal(java.io.DataOutputStream out) throws java.io.IOException
-            {
-                out.writeByte(0x51);
-                out.writeByte(3);
-
-                // Protocol name
-
-                out.writeByte(20);
-                out.writeByte(-74);
-                out.writeByte(5);
-                out.writeByte(-22);
-                out.writeByte(96);
-
-                // Message name
-
-                out.writeByte(18);
-                out.writeByte(79);
-                out.writeByte(-79);
-
-                // Message
-
-                marshal(out, this);
-            }
-
-            void _marshal(java.nio.ByteBuffer out) throws java.io.IOException
-            {
-                out.put((byte)0x51);
-                out.put((byte)3);
-
-                // Protocol name
-
-                out.put((byte)20);
-                out.put((byte)-74);
-                out.put((byte)5);
-                out.put((byte)-22);
-                out.put((byte)96);
-
-                // Message name
-
-                out.put((byte)18);
-                out.put((byte)79);
-                out.put((byte)-79);
-
-                // Message
-
-                marshal(out, this);
-            }
-
-            public boolean equals(Object _o)
-            {
-                if (_o instanceof frame) {
-                    frame o = (frame) _o;
-
-                    return broadcast.equals(data, o.data);
-                }
-
-                return false;
-            }
-
-            public int hashCode()
-            {
-                return java.util.Arrays.hashCode(data);
-            }
-
-            public java.lang.String toString()
-            {
-                StringBuilder buf = new StringBuilder("Request frame {\n");
-
-                buf.append("    binary data = ");
-                if (data != null) {
-                    buf.append("binary[");
-                    buf.append(data.length);
-                    buf.append("];\n");
-                } else
-                    buf.append("null;\n");
+                buf.append("    int32 screen_height = ");
+                buf.append(screen_height);
+                buf.append(";\n");
 
                 buf.append("}\n");
                 return buf.toString();
@@ -904,8 +784,8 @@ public abstract class broadcast implements java.io.Serializable {
              case -32638:
                 return unmarshal_connected(in);
 
-             case -9062:
-                return unmarshal_frame_ack(in);
+             case -32373:
+                return unmarshal_frame(in);
 
              default:
                 throw new java.io.IOException("invalid message for 'broadcast' protocol");
@@ -939,10 +819,25 @@ public abstract class broadcast implements java.io.Serializable {
             marshal(out, v.server_version);
         }
 
-        static void marshal(java.io.DataOutputStream out, frame_ack v) throws java.io.IOException
+        static void marshal(java.io.DataOutputStream out, frame v) throws java.io.IOException
         {
             out.writeByte(81);
-            out.writeByte(0);
+            out.writeByte(6);
+
+            out.writeByte(18);
+            out.writeByte(-90);
+            out.writeByte(82);
+            marshal(out, v.sequental_number);
+
+            out.writeByte(18);
+            out.writeByte(65);
+            out.writeByte(-26);
+            marshal(out, v.is_full);
+
+            out.writeByte(18);
+            out.writeByte(127);
+            out.writeByte(56);
+            marshal(out, v.data);
         }
 
         static Error unmarshal_Error(java.io.DataInputStream in) throws java.io.IOException
@@ -1012,12 +907,48 @@ public abstract class broadcast implements java.io.Serializable {
             return d;
         }
 
-        static frame_ack unmarshal_frame_ack(java.io.DataInputStream in) throws java.io.IOException
+        static frame unmarshal_frame(java.io.DataInputStream in) throws java.io.IOException
         {
-            if (readLength(in, 0x50) != 0)
-                throw new java.io.IOException("invalid message length");
+            final int flds = readLength(in, 0x50);
 
-            return new frame_ack();
+            if (flds < 0)
+                throw new java.io.IOException("invalid array size");
+
+            java.util.BitSet flg = new java.util.BitSet(3);
+            frame d = new frame();
+
+            for (int ii = 0; ii < flds; ii += 2) {
+                switch (unmarshal_int16(in)) {
+             case -22958: //int64 sequental_number
+                {
+                    flg.set(0);
+                    d.sequental_number = unmarshal_int64(in);
+                }
+                break;
+
+             case 16870: //bool is_full
+                {
+                    flg.set(1);
+                    d.is_full = unmarshal_bool(in);
+                }
+                break;
+
+             case 32568: //binary data
+                {
+                    flg.set(2);
+                    d.data = unmarshal_binary(in);
+                }
+                break;
+
+                 default:
+                    throw new java.io.IOException("unknown field in message");
+                }
+            }
+
+            if (flg.cardinality() != 3)
+                throw new java.io.IOException("missing required field(s)");
+
+            return d;
         }
 
         public static broadcast.Reply unmarshal(java.nio.ByteBuffer in) throws java.io.IOException
@@ -1045,8 +976,8 @@ public abstract class broadcast implements java.io.Serializable {
              case -32638:
                 return unmarshal_connected(in);
 
-             case -9062:
-                return unmarshal_frame_ack(in);
+             case -32373:
+                return unmarshal_frame(in);
 
              default:
                 throw new java.io.IOException("invalid message for 'broadcast' protocol");
@@ -1080,10 +1011,25 @@ public abstract class broadcast implements java.io.Serializable {
             marshal(out, v.server_version);
         }
 
-        static void marshal(java.nio.ByteBuffer out, frame_ack v) throws java.io.IOException
+        static void marshal(java.nio.ByteBuffer out, frame v) throws java.io.IOException
         {
             out.put((byte)81);
-            out.put((byte)0);
+            out.put((byte)6);
+
+            out.put((byte)18);
+            out.put((byte)-90);
+            out.put((byte)82);
+            marshal(out, v.sequental_number);
+
+            out.put((byte)18);
+            out.put((byte)65);
+            out.put((byte)-26);
+            marshal(out, v.is_full);
+
+            out.put((byte)18);
+            out.put((byte)127);
+            out.put((byte)56);
+            marshal(out, v.data);
         }
 
         static Error unmarshal_Error(java.nio.ByteBuffer in) throws java.io.IOException
@@ -1153,12 +1099,48 @@ public abstract class broadcast implements java.io.Serializable {
             return d;
         }
 
-        static frame_ack unmarshal_frame_ack(java.nio.ByteBuffer in) throws java.io.IOException
+        static frame unmarshal_frame(java.nio.ByteBuffer in) throws java.io.IOException
         {
-            if (readLength(in, 0x50) != 0)
-                throw new java.io.IOException("invalid message length");
+            final int flds = readLength(in, 0x50);
 
-            return new frame_ack();
+            if (flds < 0)
+                throw new java.io.IOException("invalid array size");
+
+            java.util.BitSet flg = new java.util.BitSet(3);
+            frame d = new frame();
+
+            for (int ii = 0; ii < flds; ii += 2) {
+                switch (unmarshal_int16(in)) {
+             case -22958: //int64 sequental_number
+                {
+                    flg.set(0);
+                    d.sequental_number = unmarshal_int64(in);
+                }
+                break;
+
+             case 16870: //bool is_full
+                {
+                    flg.set(1);
+                    d.is_full = unmarshal_bool(in);
+                }
+                break;
+
+             case 32568: //binary data
+                {
+                    flg.set(2);
+                    d.data = unmarshal_binary(in);
+                }
+                break;
+
+                 default:
+                    throw new java.io.IOException("unknown field in message");
+                }
+            }
+
+            if (flg.cardinality() != 3)
+                throw new java.io.IOException("missing required field(s)");
+
+            return d;
         }
 
         // Interface for receiving all messages.
@@ -1166,7 +1148,7 @@ public abstract class broadcast implements java.io.Serializable {
         public interface Receiver {
             void handle(Error m);
             void handle(connected m);
-            void handle(frame_ack m);
+            void handle(frame m);
         }
 
         public abstract void deliverTo(Receiver r);
@@ -1365,11 +1347,17 @@ public abstract class broadcast implements java.io.Serializable {
             }
         }
 
-        public static class frame_ack extends Reply {
-            static final long serialVersionUID = 1L;
+        public static class frame extends Reply {
+            static final long serialVersionUID = 1210797320L;
+            public long sequental_number;
+            public boolean is_full;
+            public byte[] data;
 
-            public frame_ack()
+            public frame()
             {
+                sequental_number = 0;
+                is_full = false;
+                data = new byte[0];
             }
 
             public void deliverTo(Receiver r)
@@ -1393,8 +1381,8 @@ public abstract class broadcast implements java.io.Serializable {
                 // Message name
 
                 out.writeByte(18);
-                out.writeByte(-36);
-                out.writeByte(-102);
+                out.writeByte(-127);
+                out.writeByte(-117);
 
                 // Message
 
@@ -1417,27 +1405,53 @@ public abstract class broadcast implements java.io.Serializable {
                 // Message name
 
                 out.put((byte)18);
-                out.put((byte)-36);
-                out.put((byte)-102);
+                out.put((byte)-127);
+                out.put((byte)-117);
 
                 // Message
 
                 marshal(out, this);
             }
-            
+
             public boolean equals(Object _o)
             {
-                return _o instanceof frame_ack;
+                if (_o instanceof frame) {
+                    frame o = (frame) _o;
+
+                    return sequental_number == o.sequental_number && 
+                        is_full == o.is_full && 
+                        broadcast.equals(data, o.data);
+                }
+
+                return false;
             }
 
             public int hashCode()
             {
-                return super.hashCode();
+                return (new Long(sequental_number).hashCode()) + 
+                        (new Boolean(is_full).hashCode()) + 
+                        java.util.Arrays.hashCode(data);
             }
 
             public java.lang.String toString()
             {
-                StringBuilder buf = new StringBuilder("Reply frame_ack {\n");
+                StringBuilder buf = new StringBuilder("Reply frame {\n");
+
+                buf.append("    int64 sequental_number = ");
+                buf.append(sequental_number);
+                buf.append(";\n");
+
+                buf.append("    bool is_full = ");
+                buf.append(is_full);
+                buf.append(";\n");
+
+                buf.append("    binary data = ");
+                if (data != null) {
+                    buf.append("binary[");
+                    buf.append(data.length);
+                    buf.append("];\n");
+                } else
+                    buf.append("null;\n");
 
                 buf.append("}\n");
                 return buf.toString();

@@ -27,10 +27,14 @@ include($$PWD/screen_capture_lite/screen_capture_lite.pri)
 CONFIG += c++17
 
 SOURCES += \
+        brcconnection.cpp \
+        brcserver.cpp \
         main.cpp \
         mainwindow.cpp
 
 HEADERS += \
+        brcconnection.h \
+        brcserver.h \
         mainwindow.h
 
 FORMS += \
@@ -42,6 +46,9 @@ LIBS += -lpthread
 QMAKE_CXXFLAGS +=  -pipe -std=c++17 -Wall -frtti -fexceptions -Werror=return-type -Werror=overloaded-virtual
 QMAKE_CXXFLAGS +=  -Wctor-dtor-privacy -Werror=delete-non-virtual-dtor -fstrict-aliasing
 QMAKE_CXXFLAGS +=  -Werror=strict-aliasing -Wstrict-aliasing=2
+INCLUDEPATH += $$PWD/../utils
+
+
 include($$PWD/../NetProto/bproto.pri)
 
 # Default rules for deployment.

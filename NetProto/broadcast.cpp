@@ -10,14 +10,12 @@ namespace broadcast {
 
 static void marshal(protocol::ostream&, request::connect const&);
 static void unmarshal(protocol::istream&, request::connect&);
-static void marshal(protocol::ostream&, request::frame const&);
-static void unmarshal(protocol::istream&, request::frame&);
 static void marshal(protocol::ostream&, reply::Error const&);
 static void unmarshal(protocol::istream&, reply::Error&);
 static void marshal(protocol::ostream&, reply::connected const&);
 static void unmarshal(protocol::istream&, reply::connected&);
-static void marshal(protocol::ostream&, reply::frame_ack const&);
-static void unmarshal(protocol::istream&, reply::frame_ack&);
+static void marshal(protocol::ostream&, reply::frame const&);
+static void unmarshal(protocol::istream&, reply::frame&);
 
 request::Base::~Base()
 {
@@ -142,6 +140,25 @@ static int16_t readFieldLabel(protocol::istream& is, protocol::byte const expTag
 	throw std::runtime_error("field out of range");
 }
 
+static void marshal(protocol::ostream& os, bool const& v)
+{
+    os.put(v ? 0x71 : 0x70);
+}
+
+static void unmarshal(protocol::istream& is, bool& v)
+{
+    protocol::byte tmp;
+
+    if (is >> tmp) {
+	switch (tmp) {
+	 case 0x70: v = false; break;
+	 case 0x71: v = true; break;
+	 default: throw std::runtime_error("Bad bool tag");
+	}
+    } else
+	throw std::runtime_error("Unexpected end of file");
+}
+
 static void unmarshal(protocol::istream& is, int16_t& v)
 {
     int64_t const vv = consumeRawInt(is, 0x10);
@@ -165,6 +182,16 @@ static void unmarshal(protocol::istream& is, int32_t& v)
 	v = int32_t(vv);
     else
 	throw std::runtime_error("int32 out of range");
+}
+
+static void marshal(protocol::ostream& os, int64_t const& v)
+{
+    emitRawInt(os, 0x10, v);
+}
+
+static void unmarshal(protocol::istream& is, int64_t& v)
+{
+    v = consumeRawInt(is, 0x10);
 }
 
 static void marshal(protocol::ostream& os, std::string const& v)
@@ -237,25 +264,14 @@ static void unmarshal(protocol::istream& is, request::connect& v)
 	    flg |= 0x1;
 	    break;
 
-	 default:
-	    throw std::runtime_error("found unknown field");
-	}
-    }
+	 case -32007:
+	    unmarshal(is, v.screen_width);
+	    flg |= 0x2;
+	    break;
 
-    if (flg != 0x1)
-	throw std::runtime_error("missing required field(s) while unmarshalling 'request::connect' type");
-}
-
-static void unmarshal(protocol::istream& is, request::frame& v)
-{
-    uint32_t flg = 0;
-    size_t const total = readLength(is, 0x50);
-
-    for (size_t ii = 0; ii < total; ii += 2) {
-	switch (readFieldLabel(is, 0x10)) {
-	 case 32568:
-	    unmarshal(is, v.data);
-	    flg |= 0x1;
+	 case 1134:
+	    unmarshal(is, v.screen_height);
+	    flg |= 0x4;
 	    break;
 
 	 default:
@@ -263,8 +279,8 @@ static void unmarshal(protocol::istream& is, request::frame& v)
 	}
     }
 
-    if (flg != 0x1)
-	throw std::runtime_error("missing required field(s) while unmarshalling 'request::frame' type");
+    if (flg != 0x7)
+	throw std::runtime_error("missing required field(s) while unmarshalling 'request::connect' type");
 }
 
 static void unmarshal(protocol::istream& is, reply::Error& v)
@@ -314,10 +330,35 @@ static void unmarshal(protocol::istream& is, reply::connected& v)
 	throw std::runtime_error("missing required field(s) while unmarshalling 'reply::connected' type");
 }
 
-static void unmarshal(protocol::istream& is, reply::frame_ack&)
+static void unmarshal(protocol::istream& is, reply::frame& v)
 {
-    if (readLength(is, 0x50) != 0)
-	throw std::runtime_error("error unmarshalling 'reply::frame_ack' type");
+    uint32_t flg = 0;
+    size_t const total = readLength(is, 0x50);
+
+    for (size_t ii = 0; ii < total; ii += 2) {
+	switch (readFieldLabel(is, 0x10)) {
+	 case -22958:
+	    unmarshal(is, v.sequental_number);
+	    flg |= 0x1;
+	    break;
+
+	 case 16870:
+	    unmarshal(is, v.is_full);
+	    flg |= 0x2;
+	    break;
+
+	 case 32568:
+	    unmarshal(is, v.data);
+	    flg |= 0x4;
+	    break;
+
+	 default:
+	    throw std::runtime_error("found unknown field");
+	}
+    }
+
+    if (flg != 0x7)
+	throw std::runtime_error("missing required field(s) while unmarshalling 'reply::frame' type");
 }
 
 static void marshal(protocol::ostream& os, request::connect const& v)
@@ -325,7 +366,7 @@ static void marshal(protocol::ostream& os, request::connect const& v)
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(2)
+	    static_cast<protocol::byte>(6)
 	};
 
 	os.write(data, sizeof(data));
@@ -340,6 +381,26 @@ static void marshal(protocol::ostream& os, request::connect const& v)
 	os.write(data, sizeof(data));
     }
     marshal(os, v.version_client);
+    {
+	static protocol::byte const data[] = {
+	    static_cast<protocol::byte>(18),
+	    static_cast<protocol::byte>(-126),
+	    static_cast<protocol::byte>(-7)
+	};
+
+	os.write(data, sizeof(data));
+    }
+    marshal(os, v.screen_width);
+    {
+	static protocol::byte const data[] = {
+	    static_cast<protocol::byte>(18),
+	    static_cast<protocol::byte>(4),
+	    static_cast<protocol::byte>(110)
+	};
+
+	os.write(data, sizeof(data));
+    }
+    marshal(os, v.screen_height);
 }
 
 void request::connect::marshal(protocol::ostream& os) const
@@ -373,66 +434,6 @@ void request::connect::marshal(protocol::ostream& os) const
 	    static_cast<protocol::byte>(18),
 	    static_cast<protocol::byte>(54),
 	    static_cast<protocol::byte>(55)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    protocol::broadcast::marshal(os, *this);
-}
-
-static void marshal(protocol::ostream& os, request::frame const& v)
-{
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(2)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(127),
-	    static_cast<protocol::byte>(56)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    marshal(os, v.data);
-}
-
-void request::frame::marshal(protocol::ostream& os) const
-{
-    class exMan {
-      std::ios::iostate const orig;
-      protocol::ostream& os;
-     public:
-      explicit exMan(protocol::ostream& s) : orig(s.exceptions()), os(s)
-      {
-        os.exceptions(std::ios::failbit | std::ios::badbit);
-        std::noskipws(os);
-      }
-	   ~exMan() { os.exceptions(orig); }
-    } em(os);
-
-    os << "SDD\x02\x51\x03";
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(20),
-	    static_cast<protocol::byte>(-74),
-	    static_cast<protocol::byte>(5),
-	    static_cast<protocol::byte>(-22),
-	    static_cast<protocol::byte>(96)
-	};
-
-	os.write(data, sizeof(data));
-    }
-    {
-	static protocol::byte const data[] = {
-	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(79),
-	    static_cast<protocol::byte>(-79)
 	};
 
 	os.write(data, sizeof(data));
@@ -570,19 +571,49 @@ void reply::connected::marshal(protocol::ostream& os) const
     protocol::broadcast::marshal(os, *this);
 }
 
-static void marshal(protocol::ostream& os, reply::frame_ack const&)
+static void marshal(protocol::ostream& os, reply::frame const& v)
 {
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(81),
-	    static_cast<protocol::byte>(0)
+	    static_cast<protocol::byte>(6)
 	};
 
 	os.write(data, sizeof(data));
     }
+    {
+	static protocol::byte const data[] = {
+	    static_cast<protocol::byte>(18),
+	    static_cast<protocol::byte>(-90),
+	    static_cast<protocol::byte>(82)
+	};
+
+	os.write(data, sizeof(data));
+    }
+    marshal(os, v.sequental_number);
+    {
+	static protocol::byte const data[] = {
+	    static_cast<protocol::byte>(18),
+	    static_cast<protocol::byte>(65),
+	    static_cast<protocol::byte>(-26)
+	};
+
+	os.write(data, sizeof(data));
+    }
+    marshal(os, v.is_full);
+    {
+	static protocol::byte const data[] = {
+	    static_cast<protocol::byte>(18),
+	    static_cast<protocol::byte>(127),
+	    static_cast<protocol::byte>(56)
+	};
+
+	os.write(data, sizeof(data));
+    }
+    marshal(os, v.data);
 }
 
-void reply::frame_ack::marshal(protocol::ostream& os) const
+void reply::frame::marshal(protocol::ostream& os) const
 {
     class exMan {
       std::ios::iostate const orig;
@@ -611,8 +642,8 @@ void reply::frame_ack::marshal(protocol::ostream& os) const
     {
 	static protocol::byte const data[] = {
 	    static_cast<protocol::byte>(18),
-	    static_cast<protocol::byte>(-36),
-	    static_cast<protocol::byte>(-102)
+	    static_cast<protocol::byte>(-127),
+	    static_cast<protocol::byte>(-117)
 	};
 
 	os.write(data, sizeof(data));
@@ -636,24 +667,8 @@ static request::Base::Ptr request_connect_unmarshaller(protocol::istream& is)
 void request::connect::swap(request::connect& o) noexcept(true)
 {
     std::swap(version_client, o.version_client);
-}
-
-void request::frame::deliverTo(Receiver& r)
-{
-    r.handle(*this);
-}
-
-static request::Base::Ptr request_frame_unmarshaller(protocol::istream& is)
-{
-    std::unique_ptr< request::frame > ptr(new request::frame);
-
-    unmarshal(is, *ptr);
-    return request::Base::Ptr(ptr.release());
-}
-
-void request::frame::swap(request::frame& o) noexcept(true)
-{
-    data.swap(o.data);
+    std::swap(screen_width, o.screen_width);
+    std::swap(screen_height, o.screen_height);
 }
 
 void reply::Error::deliverTo(Receiver& r)
@@ -693,21 +708,24 @@ void reply::connected::swap(reply::connected& o) noexcept(true)
     std::swap(server_version, o.server_version);
 }
 
-void reply::frame_ack::deliverTo(Receiver& r)
+void reply::frame::deliverTo(Receiver& r)
 {
     r.handle(*this);
 }
 
-static reply::Base::Ptr reply_frame_ack_unmarshaller(protocol::istream& is)
+static reply::Base::Ptr reply_frame_unmarshaller(protocol::istream& is)
 {
-    std::unique_ptr< reply::frame_ack > ptr(new reply::frame_ack);
+    std::unique_ptr< reply::frame > ptr(new reply::frame);
 
     unmarshal(is, *ptr);
     return reply::Base::Ptr(ptr.release());
 }
 
-void reply::frame_ack::swap(reply::frame_ack&) noexcept(true)
+void reply::frame::swap(reply::frame& o) noexcept(true)
 {
+    std::swap(sequental_number, o.sequental_number);
+    std::swap(is_full, o.is_full);
+    data.swap(o.data);
 }
 
 request::Base::Ptr request::Base::unmarshal(protocol::istream& is)
@@ -745,9 +763,6 @@ request::Base::Ptr request::Base::unmarshal(protocol::istream& is)
     switch (message) {
      case 13879:
 	return request_connect_unmarshaller(is);
-
-     case 20401:
-	return request_frame_unmarshaller(is);
 
      default:
 	throw std::runtime_error("invalid request for 'broadcast' protocol");
@@ -793,8 +808,8 @@ reply::Base::Ptr reply::Base::unmarshal(protocol::istream& is)
      case -32638:
 	return reply_connected_unmarshaller(is);
 
-     case -9062:
-	return reply_frame_ack_unmarshaller(is);
+     case -32373:
+	return reply_frame_unmarshaller(is);
 
      default:
 	throw std::runtime_error("invalid reply for 'broadcast' protocol");
