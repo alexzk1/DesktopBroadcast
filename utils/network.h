@@ -3,6 +3,12 @@
 #include <boost/asio.hpp>
 #include <boost/lambda/bind.hpp>
 #include <boost/lambda/lambda.hpp>
+#include <boost/asio.hpp>
+#include <boost/iostreams/categories.hpp>
+#include <boost/iostreams/positioning.hpp>
+#include <boost/iostreams/concepts.hpp>
+#include <boost/iostreams/stream.hpp>
+
 #include <streambuf>
 #include "strutils.h"
 #include "fatal_err.h"
@@ -226,4 +232,51 @@ namespace network
         src.consume(n); // sent data is removed from input sequence
         return n;
     }
+
+//--------------------------------------------------------------------------------------------------------
+    //doing stream out of socket
+//--------------------------------------------------------------------------------------------------------
+    class sock_iostream_device
+    {
+    public:
+        typedef char char_type;
+        struct category
+                : public virtual boost::iostreams::seekable_device_tag
+        {};
+
+        sock_iostream_device(boost::asio::ip::tcp::socket& sock)
+            : m_sock(sock)
+        {
+        }
+
+        std::streamsize read(char* buffer, std::streamsize n)
+        {
+            boost::system::error_code ec;
+            std::streamsize len = m_sock.receive(boost::asio::buffer(buffer, n), 0, ec);
+            if (ec)
+                len = 0;
+            return len;
+        }
+
+        std::streamsize write(const char* buffer, std::streamsize n)
+        {
+
+            boost::system::error_code ec;
+            std::streamsize len = m_sock.send(boost::asio::buffer(buffer, n), 0, ec);
+            if (ec)
+                len = 0;
+            return len;
+        }
+
+        std::streamsize seek(std::streamsize, std::ios_base::seekdir)
+        {
+            // not supported
+            return 0;
+        }
+
+    private:
+        boost::asio::ip::tcp::socket& m_sock;
+    };
+
+    using sock_iostream = boost::iostreams::stream< sock_iostream_device>;
 }

@@ -49,6 +49,12 @@ static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply:
     const auto h = SL::Screen_Capture::Height(img);
     tmp.resize(static_cast<size_t>(w * h * sizeof(SL::Screen_Capture::ImageBGRA)));
     SL::Screen_Capture::Extract(img, tmp.data(), tmp.size());
+
+    //fixing colors, as PNG compressor wants RGBA
+    static_assert(sizeof(SL::Screen_Capture::ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
+    for (size_t i = 0, sz = tmp.size(); i < sz; i += sizeof(SL::Screen_Capture::ImageBGRA))
+        std::swap(*(tmp.data() + i + 0), *(tmp.data() + i + 2));
+
     dst.w = w;
     dst.h = h;
     dst.flags |= IMAGE_PNG;
@@ -189,7 +195,6 @@ void BrcConnection::start()
         {
             if (socket)
             {
-                boost::asio::streambuf in_buffer;
                 boost::asio::streambuf out_buffer;
                 std::ostream os(&out_buffer);
 
@@ -201,20 +206,19 @@ void BrcConnection::start()
                     return *should_stop || BrcServer::goingDown() || !socket->is_open();
                 };
 
+
                 while (!should_break_loop())
                 {
                     const auto readable = network::readableBytes(socket); //debuger friendly
-
-                    if (readable > 0 && network::readFromSocket(socket, in_buffer, readable))
+                    if (readable > 5)
                     {
-                        std::istream is(&in_buffer);
                         try
                         {
+                            network::sock_iostream is(*socket);
                             request::Base::unmarshal(is)->deliverTo(fsm);
                         }
                         catch (...)
                         {
-
                         }
                     }
 
