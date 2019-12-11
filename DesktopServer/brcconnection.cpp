@@ -131,20 +131,37 @@ private:
     void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply::frame& dst) const
     {
         using namespace pixel_format;
+        using namespace SL::Screen_Capture;
 
-        pools::PooledVector<uint8_t> tmp;
-        const size_t w = SL::Screen_Capture::Width(img);
-        const size_t h = SL::Screen_Capture::Height(img);
+        const size_t w = Width(img);
+        const size_t h = Height(img);
         const size_t pixel_count = w * h;
 
-        tmp.resize(pixel_count * sizeof(SL::Screen_Capture::ImageBGRA));
-        SL::Screen_Capture::Extract(img, tmp.data(), tmp.size());
-
-        //fixing colors, as PNG compressor wants RGB, also may reduce size
-        static_assert(sizeof(SL::Screen_Capture::ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
+        static_assert(sizeof(ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
         pools::PooledVector<uint8_t> rgb;
         rgb.resize(pixel_count * 3);
-        convertBGRA8888_to_RGB888(Iterator8888::start(tmp, pixel_count), pixel_count, Iterator888::start(rgb, pixel_count));
+
+        auto startsrc = StartSrc(img);
+
+        const auto cast_src = [&startsrc]()
+        {
+            uint8_t *p;
+            memcpy(&p, &startsrc, sizeof(void*));
+            return p;
+        };
+
+        if (isDataContiguous(img))
+            convertBGRA8888_to_RGB888(Iterator8888::start(cast_src(), pixel_count), pixel_count,
+                                      Iterator888::start(rgb, pixel_count));
+        else
+        {
+            auto out = Iterator888::start(rgb, pixel_count);
+            for (size_t i = 0; i < h; ++i)
+            {
+                convertBGRA8888_to_RGB888(Iterator8888::start(cast_src(), pixel_count), out, w);
+                startsrc = GotoNextRow(img, startsrc);      // advance to the next row
+            }
+        }
 
         dst.w = w;
         dst.h = h;

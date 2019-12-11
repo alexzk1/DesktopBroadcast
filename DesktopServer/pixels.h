@@ -207,18 +207,19 @@ namespace pixel_format
     TEST_MOVE_NOEX(Iterator888);
     TEST_MOVE_NOEX(Iterator8888);
 
-    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, const Iterator8888& end, const Iterator888& out)
+    //this version advances out iterator by pixels added
+    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, Iterator888& out, const size_t pixels_amount)
     {
-        assert(start.sameImage(end));
-        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(std::distance(start, end)), [&out, &start](size_t index)
+        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(pixels_amount), [&out, &start](const size_t index)
         {
             std::copy_n(std::reverse_iterator(start[index] + 3), 3, out[index]);
         });
+        std::advance(out, pixels_amount);
     }
 
-    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, size_t pixels_amount, const Iterator888& out)
+    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, const size_t pixels_amount, const Iterator888& out)
     {
-        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(pixels_amount), [&out, &start](size_t index)
+        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(pixels_amount), [&out, &start](const size_t index)
         {
             std::copy_n(std::reverse_iterator(start[index] + 3), 3, out[index]);
         });
