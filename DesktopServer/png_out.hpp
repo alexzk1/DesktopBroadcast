@@ -250,7 +250,7 @@ public:
 private:
     void crc32(const uint8_t* data, size_t len)
     {
-        constexpr static uint32_t magic1 = 0xEDB88320;
+        constexpr uint32_t magic1 = 0xEDB88320;
 
         crc = ~crc;
         for (size_t i = 0; i < len; ++i)
@@ -272,8 +272,8 @@ private:
     // Reads the 'adler' field and updates its value based on the given array of new data.
     void adler32(const uint8_t* data, size_t len)
     {
-        constexpr static uint32_t mask = 0xFFFF;
-        constexpr static uint32_t div  = 65521u;
+        constexpr uint32_t mask = 0xFFFF;
+        constexpr uint32_t div  = 65521u;
 
         uint32_t s1 = adler & mask;
         uint32_t s2 = adler >> 16;

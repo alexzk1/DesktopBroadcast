@@ -9,6 +9,7 @@
 #include "strutils.h"
 #include <chrono>
 #include "png_out.hpp"
+#include "pixels.h"
 
 //--------------------------------------------------------------------------------------------------------
 using namespace protocol::broadcast;
@@ -19,43 +20,6 @@ using ImageVector     = std::vector<uint8_t>;
 constexpr static int32_t IMAGE_NOFLAGS = 0;
 constexpr static int32_t IMAGE_DELTA   = 1;
 constexpr static int32_t IMAGE_PNG     = 2;
-
-extern void lodepng_free(void* ptr);
-
-static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply::frame& dst)
-{
-    pools::PooledVector<uint8_t> tmp;
-    const auto w = SL::Screen_Capture::Width(img);
-    const auto h = SL::Screen_Capture::Height(img);
-    tmp.resize(static_cast<size_t>(w * h * sizeof(SL::Screen_Capture::ImageBGRA)));
-    SL::Screen_Capture::Extract(img, tmp.data(), tmp.size());
-
-    //fixing colors, as PNG compressor wants RGBA
-    static_assert(sizeof(SL::Screen_Capture::ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
-    pools::PooledVector<uint8_t> rgb;
-    rgb.reserve(3 * tmp.size() / 4);
-
-    for (size_t i = 0, sz = tmp.size(); i < sz; i += sizeof(SL::Screen_Capture::ImageBGRA))
-    {
-        //std::swap(*(tmp.data() + i + 0), *(tmp.data() + i + 2));
-        rgb.push_back(*(tmp.data() + i + 2));
-        rgb.push_back(*(tmp.data() + i + 1));
-        rgb.push_back(*(tmp.data() + i + 0));
-    }
-
-    dst.w = w;
-    dst.h = h;
-    dst.flags |= IMAGE_PNG;
-
-    dst.data.clear();
-    dst.data.reserve(w * h * 4);
-    TinyPngOut png(w, h, [&dst](const uint8_t* src, size_t sz)
-    {
-        std::copy_n(src, sz, std::back_inserter(dst.data));
-    });
-    png.write(rgb);
-}
-
 
 // this holds requests from client according to protocol and basicaly is finite state machine
 class FromClientFsm : public protocol::broadcast::request::Receiver
@@ -162,6 +126,39 @@ private:
 
         })->start_capturing();
     }
+
+
+    void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply::frame& dst) const
+    {
+        using namespace pixel_format;
+
+        pools::PooledVector<uint8_t> tmp;
+        const size_t w = SL::Screen_Capture::Width(img);
+        const size_t h = SL::Screen_Capture::Height(img);
+        const size_t pixel_count = w * h;
+
+        tmp.resize(pixel_count * sizeof(SL::Screen_Capture::ImageBGRA));
+        SL::Screen_Capture::Extract(img, tmp.data(), tmp.size());
+
+        //fixing colors, as PNG compressor wants RGB, also may reduce size
+        static_assert(sizeof(SL::Screen_Capture::ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
+        pools::PooledVector<uint8_t> rgb;
+        rgb.resize(pixel_count * 3);
+        convertBGRA8888_to_RGB888(Iterator8888::start(tmp, pixel_count), Iterator8888::end(tmp, pixel_count), Iterator888::start(rgb, pixel_count));
+
+        dst.w = w;
+        dst.h = h;
+        dst.flags |= IMAGE_PNG;
+
+        dst.data.clear();
+        dst.data.reserve(pixel_count * 3 + 100);
+        TinyPngOut png(w, h, [&dst](const uint8_t* src, size_t sz)
+        {
+            std::copy_n(src, sz, std::back_inserter(dst.data));
+        });
+        png.write(rgb);
+    }
+
 };
 
 //--------------------------------------------------------------------------------------------------------

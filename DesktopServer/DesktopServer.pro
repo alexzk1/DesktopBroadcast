@@ -25,6 +25,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 include($$PWD/screen_capture_lite/screen_capture_lite.pri)
 
 CONFIG += c++17
+CONFIG += openmp
+
+openmp {
+    DEFINES *= USING_OPENMP
+    QMAKE_CXXFLAGS *= -fopenmp
+    QMAKE_LFLAGS   *= -fopenmp
+}
 
 SOURCES += \
         brcconnection.cpp \
@@ -36,6 +43,8 @@ HEADERS += \
         brcconnection.h \
         brcserver.h \
         mainwindow.h \
+        offset_iter.h \
+        pixels.h \
         png_out.hpp
 
 FORMS += \
@@ -48,6 +57,22 @@ QMAKE_CXXFLAGS +=  -pipe -std=c++17 -Wall -frtti -fexceptions -Werror=return-typ
 QMAKE_CXXFLAGS +=  -Wctor-dtor-privacy -Werror=delete-non-virtual-dtor -fno-strict-aliasing
 QMAKE_CXXFLAGS +=  -Werror=strict-aliasing -Wstrict-aliasing=2
 INCLUDEPATH += $$PWD/../utils
+
+
+CONFIG(debug, debug|release) {
+     message( "Building the DEBUG Version" )
+     #lets optimize for CPU on debug, for release - packager should do
+     QMAKE_CXXFLAGS +=  -march=native
+     QMAKE_CXXFLAGS += -O0 -g
+     DEFINES += _DEBUG
+     QMAKE_CXXFLAGS += -fsanitize=undefined -fsanitize=vptr
+     LIBS += -lubsan
+}
+else {
+    DEFINES += NDEBUG
+    message( "Building the RELEASE Version" )
+    QMAKE_CXXFLAGS += -O3
+}
 
 unix:!macosx: DEFINES += OS_LINUX
 
