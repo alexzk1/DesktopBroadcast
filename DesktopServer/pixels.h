@@ -38,12 +38,12 @@ namespace pixel_format
             current(0)
         {
         }
-        static PixelIterator start(PixelPtr buffer, size_t pixels_amount)
+        static PixelIterator start(PixelPtr buffer, size_t pixels_amount) noexcept
         {
             return PixelIterator(buffer, pixels_amount);
         }
 
-        static PixelIterator end(PixelPtr buffer, size_t pixels_amount)
+        static PixelIterator end(PixelPtr buffer, size_t pixels_amount) noexcept
         {
             PixelIterator r(buffer, pixels_amount);
             r.current = pixels_amount;
@@ -95,28 +95,28 @@ namespace pixel_format
             return *(pixelAt(0) + n);
         }
 
-        PixelIterator& operator++()
+        PixelIterator& operator++() noexcept
         {
             // actual increment takes place here
             ++current;
             return *this;
         }
 
-        PixelIterator operator++(int)
+        PixelIterator operator++(int) noexcept
         {
             PixelIterator tmp(*this); // copy
             operator++(); // pre-increment
             return tmp;   // return old value
         }
 
-        PixelIterator& operator--()
+        PixelIterator& operator--() noexcept
         {
             if (current)
                 --current;
             return *this;
         }
 
-        PixelIterator operator--(int)
+        PixelIterator operator--(int) noexcept
         {
             PixelIterator tmp(*this);
             operator--();
@@ -124,13 +124,13 @@ namespace pixel_format
         }
 
 
-        PixelIterator& operator+=(size_t val)
+        PixelIterator& operator+=(size_t val) noexcept
         {
             current += val;
             return *this;
         }
 
-        PixelIterator& operator-=(size_t val)
+        PixelIterator& operator-=(size_t val) noexcept
         {
             if (current - val > 0)
                 current -= val;
@@ -139,14 +139,14 @@ namespace pixel_format
             return *this;
         }
 
-        PixelIterator operator+(size_t val) const
+        PixelIterator operator+(size_t val) const noexcept
         {
             PixelIterator tmp(*this);
             tmp.current = current + val;
             return tmp;
         }
 
-        PixelIterator operator-(size_t val) const
+        PixelIterator operator-(size_t val) const noexcept
         {
             PixelIterator tmp(*this);
             tmp.current = current - val;
@@ -154,54 +154,58 @@ namespace pixel_format
         }
 
 
-        size_t operator+(const PixelIterator& val) const
+        size_t operator+(const PixelIterator& val) const noexcept
         {
             return current + val.current;
         }
 
-        size_t operator-(const PixelIterator& val) const
+        size_t operator-(const PixelIterator& val) const noexcept
         {
             return current - val.current;
         }
 
-        bool operator < (const PixelIterator& c) const
+        bool operator < (const PixelIterator& c) const noexcept
         {
             return current < c.current;
         }
 
-        bool operator <= (const PixelIterator& c) const
+        bool operator <= (const PixelIterator& c) const noexcept
         {
             return current <= c.current;
         }
 
-        bool operator > (const PixelIterator& c) const
+        bool operator > (const PixelIterator& c) const noexcept
         {
             return current > c.current;
         }
 
-        bool operator >= (const PixelIterator& c) const
+        bool operator >= (const PixelIterator& c) const noexcept
         {
             return current >= c.current;
         }
 
-        bool operator == (const PixelIterator& c) const
+        bool operator == (const PixelIterator& c) const noexcept
         {
             return buffer == c.buffer && pixels_amount == c.pixels_amount && current == c.current;
         }
 
-        bool operator !=(const PixelIterator& c) const
+        bool operator !=(const PixelIterator& c) const noexcept
         {
             return !(*this == c);
         }
 
-        bool sameImage(const PixelIterator& c) const
+        bool sameImage(const PixelIterator& c) const noexcept
         {
             return buffer == c.buffer;
         }
     };
 
+
     using Iterator8888 = PixelIterator<uint8_t, 4>;
     using Iterator888  = PixelIterator<uint8_t, 3>;
+
+    TEST_MOVE_NOEX(Iterator888);
+    TEST_MOVE_NOEX(Iterator8888);
 
     inline void convertBGRA8888_to_RGB888(const Iterator8888& start, const Iterator8888& end, const Iterator888& out)
     {

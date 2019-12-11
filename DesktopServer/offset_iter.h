@@ -28,33 +28,33 @@ public:
 
     ~OffsetIterator() = default;
 
-    size_t operator*() const
+    size_t operator*() const noexcept
     {
         return current;
     }
 
-    OffsetIterator& operator++()
+    OffsetIterator& operator++() noexcept
     {
         // actual increment takes place here
         ++current;
         return *this;
     }
 
-    OffsetIterator operator++(int)
+    OffsetIterator operator++(int)noexcept
     {
         OffsetIterator tmp(*this); // copy
         operator++(); // pre-increment
         return tmp;   // return old value
     }
 
-    OffsetIterator& operator--()
+    OffsetIterator& operator--()noexcept
     {
         if (current)
             --current;
         return *this;
     }
 
-    OffsetIterator operator--(int)
+    OffsetIterator operator--(int)noexcept
     {
         OffsetIterator tmp(*this);
         operator--();
@@ -62,13 +62,13 @@ public:
     }
 
 
-    OffsetIterator& operator+=(size_t val)
+    OffsetIterator& operator+=(size_t val)noexcept
     {
         current += val;
         return *this;
     }
 
-    OffsetIterator& operator-=(size_t val)
+    OffsetIterator& operator-=(size_t val)noexcept
     {
         if (current - val > 0)
             current -= val;
@@ -77,14 +77,14 @@ public:
         return *this;
     }
 
-    OffsetIterator operator+(size_t val) const
+    OffsetIterator operator+(size_t val) const noexcept
     {
         OffsetIterator tmp(*this);
         tmp.current = current + val;
         return tmp;
     }
 
-    OffsetIterator operator-(size_t val) const
+    OffsetIterator operator-(size_t val) const noexcept
     {
         OffsetIterator tmp(*this);
         tmp.current = current - val;
@@ -92,42 +92,42 @@ public:
     }
 
 
-    size_t operator+(const OffsetIterator& val) const
+    size_t operator+(const OffsetIterator& val) const noexcept
     {
         return current + val.current;
     }
 
-    size_t operator-(const OffsetIterator& val) const
+    size_t operator-(const OffsetIterator& val) const noexcept
     {
         return current - val.current;
     }
 
-    bool operator < (const OffsetIterator& c) const
+    bool operator < (const OffsetIterator& c) const noexcept
     {
         return current < c.current;
     }
 
-    bool operator <= (const OffsetIterator& c) const
+    bool operator <= (const OffsetIterator& c) const noexcept
     {
         return current <= c.current;
     }
 
-    bool operator > (const OffsetIterator& c) const
+    bool operator > (const OffsetIterator& c) const noexcept
     {
         return current > c.current;
     }
 
-    bool operator >= (const OffsetIterator& c) const
+    bool operator >= (const OffsetIterator& c) const noexcept
     {
         return current >= c.current;
     }
 
-    bool operator == (const OffsetIterator& c) const
+    bool operator == (const OffsetIterator& c) const noexcept
     {
         return current == c.current;
     }
 
-    bool operator !=(const OffsetIterator& c) const
+    bool operator !=(const OffsetIterator& c) const noexcept
     {
         return !(*this == c);
     }
