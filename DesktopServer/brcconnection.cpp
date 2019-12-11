@@ -8,7 +8,7 @@
 #include "guard_on.h"
 #include "strutils.h"
 #include <chrono>
-#include "lodepng.h"
+#include "png_out.hpp"
 
 //--------------------------------------------------------------------------------------------------------
 using namespace protocol::broadcast;
@@ -20,27 +20,7 @@ constexpr static int32_t IMAGE_NOFLAGS = 0;
 constexpr static int32_t IMAGE_DELTA   = 1;
 constexpr static int32_t IMAGE_PNG     = 2;
 
-
-void* lodepng_malloc(size_t size)
-{
-#ifdef LODEPNG_MAX_ALLOC
-    if (size > LODEPNG_MAX_ALLOC) return 0;
-#endif
-    return malloc(size);
-}
-
-void* lodepng_realloc(void* ptr, size_t new_size)
-{
-#ifdef LODEPNG_MAX_ALLOC
-    if (new_size > LODEPNG_MAX_ALLOC) return 0;
-#endif
-    return realloc(ptr, new_size);
-}
-
-void lodepng_free(void* ptr)
-{
-    free(ptr);
-}
+extern void lodepng_free(void* ptr);
 
 static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply::frame& dst)
 {
@@ -52,19 +32,28 @@ static void ExtractAndConvertToBGRA(const SL::Screen_Capture::Image &img, reply:
 
     //fixing colors, as PNG compressor wants RGBA
     static_assert(sizeof(SL::Screen_Capture::ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
+    pools::PooledVector<uint8_t> rgb;
+    rgb.reserve(3 * tmp.size() / 4);
+
     for (size_t i = 0, sz = tmp.size(); i < sz; i += sizeof(SL::Screen_Capture::ImageBGRA))
-        std::swap(*(tmp.data() + i + 0), *(tmp.data() + i + 2));
+    {
+        //std::swap(*(tmp.data() + i + 0), *(tmp.data() + i + 2));
+        rgb.push_back(*(tmp.data() + i + 2));
+        rgb.push_back(*(tmp.data() + i + 1));
+        rgb.push_back(*(tmp.data() + i + 0));
+    }
 
     dst.w = w;
     dst.h = h;
     dst.flags |= IMAGE_PNG;
-    unsigned char* png{nullptr};
-    size_t osz{0};
-    lodepng_encode_memory(&png, &osz, tmp.data(), w, h, LCT_RGBA, 8);
 
-    dst.data.resize(osz);
-    memcpy(dst.data.data(), png, osz);
-    lodepng_free(png);
+    dst.data.clear();
+    dst.data.reserve(w * h * 4);
+    TinyPngOut png(w, h, [&dst](const uint8_t* src, size_t sz)
+    {
+        std::copy_n(src, sz, std::back_inserter(dst.data));
+    });
+    png.write(rgb);
 }
 
 

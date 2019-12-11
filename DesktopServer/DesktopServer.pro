@@ -26,21 +26,17 @@ include($$PWD/screen_capture_lite/screen_capture_lite.pri)
 
 CONFIG += c++17
 
-#gona use own pooled allocators
-DEFINES += LODEPNG_NO_COMPILE_ALLOCATORS
-
 SOURCES += \
         brcconnection.cpp \
         brcserver.cpp \
-        lodepng.cpp \
         main.cpp \
         mainwindow.cpp
 
 HEADERS += \
         brcconnection.h \
         brcserver.h \
-        lodepng.h \
-        mainwindow.h
+        mainwindow.h \
+        png_out.hpp
 
 FORMS += \
         mainwindow.ui
