@@ -186,7 +186,7 @@ public class FullscreenActivity extends AppCompatActivity
     private void connect() throws IOException
     {
         broadcast.Request.connect info = new broadcast.Request.connect();
-        info.win_caption = "mc";
+        info.win_caption = "Creator";
         info.screen_width = mContentView.getWidth();
         info.screen_height = mContentView.getHeight();
         conn = new ClientConnector("192.168.0.100", info, fcb);

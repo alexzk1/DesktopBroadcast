@@ -141,8 +141,8 @@ private:
         pools::PooledVector<uint8_t> rgb;
         rgb.resize(pixel_count * 3);
 
+        //extracting BGRA image to RGB vector
         auto startsrc = StartSrc(img);
-
         const auto cast_src = [&startsrc]()
         {
             uint8_t *p;
@@ -155,25 +155,66 @@ private:
                                       Iterator888::start(rgb, pixel_count));
         else
         {
+            //todo: this is not tested yet, as never happened
             auto out = Iterator888::start(rgb, pixel_count);
             for (size_t i = 0; i < h; ++i)
             {
-                convertBGRA8888_to_RGB888(Iterator8888::start(cast_src(), pixel_count), out, w);
+                out = convertBGRA8888_to_RGB888(Iterator8888::start(cast_src(), w), w, out);
                 startsrc = GotoNextRow(img, startsrc);      // advance to the next row
             }
         }
 
-        dst.w = w;
-        dst.h = h;
-        dst.flags |= IMAGE_PNG;
+        //checking if we can reduce image as destination has smaller screen
+        const int shrinkW = w / clientVersion.screen_width;
+        const int shrinkH = h / clientVersion.screen_height;
 
-        dst.data.clear();
-        dst.data.reserve(pixel_count * 3 + 100);
-        TinyPngOut png(w, h, [&dst](const uint8_t* src, size_t sz)
+
+        const auto make_png = [&dst](const auto & src, int w, int h)
         {
-            std::copy_n(src, sz, std::back_inserter(dst.data));
-        });
-        png.write(rgb);
+            dst.w = w;
+            dst.h = h;
+            dst.flags |= IMAGE_PNG;
+
+            dst.data.clear();
+            dst.data.reserve(w * h * 3 + 100);
+            TinyPngOut png(w, h, [&dst](const uint8_t* src, size_t sz)
+            {
+                std::copy_n(src, sz, std::back_inserter(dst.data));
+            });
+            png.write(src);
+        };
+
+
+        if (shrinkW > 1 || shrinkH > 1)
+        {
+            //need to shrink image
+            //TODO: NOT TESTED! cannot run on my device yet as it's almost same as monitor resolution
+            size_t nw = w / shrinkW;
+            size_t nh = h / shrinkH;
+            const size_t pixel_count = nw * nh;
+            pools::PooledVector<uint8_t> rgb2;
+            rgb2.resize(pixel_count * 3);
+            auto out = Iterator888::start(rgb2, pixel_count);
+
+            for (size_t j = 0; j < h; j += shrinkH)
+                for (size_t i = 0; i < w; i += shrinkW)
+                {
+                    PixelAvr<uint8_t, 3> avr;
+                    for (int k = 0; k < shrinkH; ++k)
+                    {
+                        auto srcw =  Iterator888::start(rgb.data() + (j + k) * w + i, pixel_count);
+                        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(shrinkW), [&srcw, &avr](size_t x)
+                        {
+                            avr.add(srcw[x]);
+                        });
+                    }
+                    out = avr;
+                    ++out;
+                }
+            make_png(rgb2, nw, nh);
+        }
+        else
+            make_png(rgb, w, h);
     }
 
 };

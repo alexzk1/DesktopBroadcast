@@ -4,10 +4,51 @@
 #include "cm_ctors.h"
 #include "palgorithm.h"
 #include "offset_iter.h"
+#include "marray.h"
+#include <type_traits>
 
 namespace pixel_format
 {
     using default_color_type = uint8_t; //how many bits per color
+
+    //hold / do avr value for pixels
+    template <class ColorT, size_t CompCount>
+    class PixelAvr
+    {
+    private:
+        using Type = typename std::conditional<std::is_integral<ColorT>::value, uint64_t, double>::type;
+        array1d<Type, CompCount> values;
+        size_t n{0};
+    public:
+        PixelAvr()
+        {
+            std::fill_n(std::begin(values), CompCount, static_cast<ColorT>(0));
+        }
+        NO_COPYMOVE(PixelAvr);
+        NO_NEW;
+
+        void add(const ColorT* pixel)
+        {
+            ALG_NS::for_each(OffsetIterator(0), OffsetIterator(CompCount), [&](size_t i)
+            {
+                values[i] += static_cast<Type>(pixel[i]);
+            });
+            ++n;
+        }
+
+        void setAvr(ColorT* pixel) const
+        {
+            if (!n)
+                std::fill_n(pixel, CompCount, static_cast<ColorT>(0));
+            else
+            {
+                ALG_NS::for_each(OffsetIterator(0), OffsetIterator(CompCount), [&](size_t i)
+                {
+                    pixel[i] = static_cast<ColorT>(values[i] / n);
+                });
+            }
+        }
+    };
 
     //pixel iterator, which keeps counting in term of "pixel", which is tripplet of 3 colors
     template <typename ColorT, size_t ColorsPerPixel = 3>
@@ -65,6 +106,12 @@ namespace pixel_format
         }
 
         ~PixelIterator() = default;
+
+        PixelIterator& operator = (const PixelAvr<ColorT, ColorsPP>& src)
+        {
+            src.setAvr(pixelAt(0));
+            return *this;
+        }
 
         PixelPtr pixelAt(size_t n) const noexcept
         {
@@ -207,21 +254,13 @@ namespace pixel_format
     TEST_MOVE_NOEX(Iterator888);
     TEST_MOVE_NOEX(Iterator8888);
 
-    //this version advances out iterator by pixels added
-    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, Iterator888& out, const size_t pixels_amount)
+    inline auto convertBGRA8888_to_RGB888(const Iterator8888& start, const size_t pixels_amount, Iterator888 out)
     {
         ALG_NS::for_each(OffsetIterator(0), OffsetIterator(pixels_amount), [&out, &start](const size_t index)
         {
             std::copy_n(std::reverse_iterator(start[index] + 3), 3, out[index]);
         });
         std::advance(out, pixels_amount);
-    }
-
-    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, const size_t pixels_amount, const Iterator888& out)
-    {
-        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(pixels_amount), [&out, &start](const size_t index)
-        {
-            std::copy_n(std::reverse_iterator(start[index] + 3), 3, out[index]);
-        });
+        return out;
     }
 }
