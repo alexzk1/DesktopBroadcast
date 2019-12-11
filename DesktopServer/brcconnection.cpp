@@ -144,7 +144,7 @@ private:
         static_assert(sizeof(SL::Screen_Capture::ImageBGRA) == 4, "Expecting 4 bytes/pixel!");
         pools::PooledVector<uint8_t> rgb;
         rgb.resize(pixel_count * 3);
-        convertBGRA8888_to_RGB888(Iterator8888::start(tmp, pixel_count), Iterator8888::end(tmp, pixel_count), Iterator888::start(rgb, pixel_count));
+        convertBGRA8888_to_RGB888(Iterator8888::start(tmp, pixel_count), pixel_count, Iterator888::start(rgb, pixel_count));
 
         dst.w = w;
         dst.h = h;

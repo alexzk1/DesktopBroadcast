@@ -215,4 +215,12 @@ namespace pixel_format
             std::copy_n(std::reverse_iterator(start[index] + 3), 3, out[index]);
         });
     }
+
+    inline void convertBGRA8888_to_RGB888(const Iterator8888& start, size_t pixels_amount, const Iterator888& out)
+    {
+        ALG_NS::for_each(OffsetIterator(0), OffsetIterator(pixels_amount), [&out, &start](size_t index)
+        {
+            std::copy_n(std::reverse_iterator(start[index] + 3), 3, out[index]);
+        });
+    }
 }
