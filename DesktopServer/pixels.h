@@ -66,19 +66,19 @@ namespace pixel_format
 
         ~PixelIterator() = default;
 
-        PixelPtr pixelAt(size_t n) const
+        PixelPtr pixelAt(size_t n) const noexcept
         {
             if (current + n < pixels_amount)
                 return buffer + (current + n) * ColorsPerPixel;
             return nullptr;
         }
 
-        PixelPtr operator*() const
+        PixelPtr operator*() const noexcept
         {
             return pixelAt(0);
         }
 
-        PixelPtr operator[](size_t n) const
+        PixelPtr operator[](size_t n) const noexcept
         {
             return pixelAt(n);
         }
