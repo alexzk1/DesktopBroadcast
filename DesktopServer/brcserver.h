@@ -4,8 +4,9 @@
 #include <list>
 #include "pooled_shared.h"
 #include "cm_ctors.h"
+#include "brc_conn_ptr.h"
 
-class BrcConnection;
+
 class BrcServer : public std::enable_shared_from_this<BrcServer>
 {
 public:
@@ -18,13 +19,13 @@ public:
         return tmp;
     }
 
-    std::shared_ptr<BrcServer> static create(boost::asio::io_service& ios, const boost::asio::ip::tcp::endpoint& endpoint);
+    BrcServerPtr static create(boost::asio::io_service& ios, const boost::asio::ip::tcp::endpoint& endpoint);
 private:
     BrcServer(boost::asio::io_service& ios, const boost::asio::ip::tcp::endpoint& endpoint);
     boost::asio::ip::tcp::acceptor acceptor;
 
     //only 1 connection will be active, each new drops old for now
-    std::shared_ptr<BrcConnection> lastConn;
+    BrcConnectionPtr lastConn;
     void do_accept();
 };
 

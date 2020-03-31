@@ -20,7 +20,7 @@ void BrcServer::do_accept()
         if (auto This = WThis.lock())
         {
             if (!ec)
-                (This->lastConn = pools::allocShared<BrcConnection>(socket))->start();
+                (This->lastConn = BrcConnection::allocate(socket))->start();
 
             if (!goingDown())
                 This->do_accept();
@@ -28,9 +28,9 @@ void BrcServer::do_accept()
     });
 }
 
-std::shared_ptr<BrcServer> BrcServer::create(boost::asio::io_service &ios, const tcp::endpoint &endpoint)
+BrcServerPtr BrcServer::create(boost::asio::io_service &ios, const tcp::endpoint &endpoint)
 {
-    std::shared_ptr<BrcServer> p{new BrcServer(ios, endpoint)};
+    BrcServerPtr p{new BrcServer(ios, endpoint)};
     p->do_accept();
     return p;
 }

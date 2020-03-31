@@ -202,7 +202,7 @@ private:
                     PixelAvr<uint8_t, 3> avr;
                     for (int k = 0; k < shrinkH; ++k)
                     {
-                        auto srcw =  Iterator888::start(rgb.data() + (j + k) * w + i, pixel_count);
+                        const auto srcw(Iterator888::start(rgb.data() + (j + k) * w + i, pixel_count));
                         ALG_NS::for_each(OffsetIterator(0), OffsetIterator(shrinkW), [&srcw, &avr](size_t x)
                         {
                             avr.add(srcw[x]);
